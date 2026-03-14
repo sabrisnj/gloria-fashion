@@ -1,0 +1,21 @@
+{
+  "name": "Glória Fashion",
+  "short_name": "Glória",
+  "description": "App oficial da Glória Fashion: Agendamentos, Catálogo, Vouchers e Fidelidade.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#D32F2F",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/gloria/192/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/seed/gloria/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
