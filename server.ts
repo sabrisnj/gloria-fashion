@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
-import db from "./src/database.ts";
+import db from "./src/database.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -126,6 +126,38 @@ async function startServer() {
     }
   });
 
+  app.post("/api/login", (req, res) => {
+    const { whatsapp } = req.body;
+    const cleanWhatsapp = whatsapp ? String(whatsapp).replace(/\D/g, '') : '';
+    try {
+      if (!cleanWhatsapp) {
+        return res.status(400).json({ error: "WhatsApp é obrigatório" });
+      }
+      const client = db.prepare("SELECT * FROM clients WHERE whatsapp = ?").get(cleanWhatsapp);
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+      db.prepare("UPDATE clients SET last_access = CURRENT_TIMESTAMP WHERE id = ?").run(client.id);
+      res.json(client);
+    } catch (error) {
+      console.error("Error in /api/login:", error);
+      res.status(500).json({ error: "Erro ao realizar login" });
+    }
+  });
+
+  app.get("/api/client-data", (req, res) => {
+    const { client_id } = req.query;
+    if (!client_id) return res.status(400).json({ error: "ID do cliente é obrigatório" });
+    try {
+      const appointments = db.prepare("SELECT * FROM appointments WHERE client_id = ? ORDER BY date DESC").all(client_id);
+      const vouchers = db.prepare("SELECT * FROM vouchers WHERE client_id = ?").all(client_id);
+      res.json({ appointments, vouchers });
+    } catch (error) {
+      console.error("Error in /api/client-data:", error);
+      res.status(500).json({ error: "Erro ao buscar dados do cliente" });
+    }
+  });
+
   // Products
   app.get("/api/products", (req, res) => {
     try {
@@ -150,7 +182,7 @@ async function startServer() {
   });
 
   // Appointments
-  app.get("/api/appointments/available-times", (req, res) => {
+  app.get("/api/available-times", (req, res) => {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: "Data é obrigatória" });
 
