@@ -64,6 +64,24 @@ export function Catalog() {
         <div className="absolute -left-10 -top-10 w-40 h-40 bg-peach/5 rounded-full blur-3xl" />
       </motion.div>
 
+      {/* Quick Action CTA */}
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-gradient-to-r from-primary to-peach p-5 rounded-3xl shadow-xl shadow-primary/20 text-white flex items-center justify-between gap-4"
+      >
+        <div className="space-y-1">
+          <h3 className="font-display font-bold text-lg">Pronto para brilhar?</h3>
+          <p className="text-[10px] opacity-90 font-medium">Agende seu horário agora mesmo!</p>
+        </div>
+        <Link 
+          to="/agendar" 
+          className="bg-white text-primary px-6 py-3 rounded-2xl font-bold text-xs shadow-lg hover:bg-peach/10 hover:text-white transition-all whitespace-nowrap"
+        >
+          Agendar Horário
+        </Link>
+      </motion.div>
+
       <header className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-display font-bold text-ink">Catálogo</h1>

@@ -227,27 +227,27 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
               <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                 <button 
                   onClick={() => setAppointmentFilter('all')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${appointmentFilter === 'all' ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-custom border border-gray-100'}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${appointmentFilter === 'all' ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-custom border border-gray-100'}`}
                 >
-                  Todos
+                  Todos <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${appointmentFilter === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>{appointments.length}</span>
                 </button>
                 <button 
                   onClick={() => setAppointmentFilter('pending')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${appointmentFilter === 'pending' ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-custom border border-gray-100'}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${appointmentFilter === 'pending' ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-custom border border-gray-100'}`}
                 >
-                  Pendentes
+                  Pendentes <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${appointmentFilter === 'pending' ? 'bg-white/20' : 'bg-yellow-100 text-yellow-600'}`}>{appointments.filter(a => a.status === 'aguardando aprovação').length}</span>
                 </button>
                 <button 
                   onClick={() => setAppointmentFilter('confirmed')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${appointmentFilter === 'confirmed' ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-custom border border-gray-100'}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${appointmentFilter === 'confirmed' ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-custom border border-gray-100'}`}
                 >
-                  Confirmados
+                  Confirmados <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${appointmentFilter === 'confirmed' ? 'bg-white/20' : 'bg-green-100 text-green-600'}`}>{appointments.filter(a => a.status === 'confirmado').length}</span>
                 </button>
                 <button 
                   onClick={() => setAppointmentFilter('cancelled')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${appointmentFilter === 'cancelled' ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-custom border border-gray-100'}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${appointmentFilter === 'cancelled' ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-custom border border-gray-100'}`}
                 >
-                  Cancelados
+                  Cancelados <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${appointmentFilter === 'cancelled' ? 'bg-white/20' : 'bg-red-100 text-red-600'}`}>{appointments.filter(a => a.status === 'cancelado').length}</span>
                 </button>
               </div>
 
