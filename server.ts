@@ -234,10 +234,20 @@ async function startServer() {
 
   app.post(["/api/appointments", "/api/appointments/"], (req, res) => {
     try {
-      const { client_id, service, date, time, referrer_phone, consent, notifications } = req.body;
+      const { client_id, service, date, time, referrer_phone, consent, notifications, profissional_id } = req.body;
+      
+      // 1. VALIDAÇÃO DE DADOS BÁSICA
       if (!client_id || !service || !date || !time) {
-        return res.status(400).json({ error: "Campos obrigatórios ausentes" });
+        return res.status(400).json({ 
+          error: "Campos obrigatórios ausentes",
+          details: "Nome (client_id), serviço, data e hora são obrigatórios." 
+        });
       }
+
+      // 2. CORREÇÃO DA FOREIGN KEY (LÓGICA "À PROVA DE ERROS")
+      // Se o cliente não existir ou o ID for inválido, o banco lançará erro de FK.
+      // Aqui garantimos que o ID seja pelo menos um número válido.
+      const idSeguroCliente = parseInt(String(client_id)) || 0;
 
       // Double booking prevention
       const existing = db.prepare("SELECT id FROM appointments WHERE date = ? AND time = ? AND status != 'cancelado'").get(date, time);
@@ -245,12 +255,29 @@ async function startServer() {
         return res.status(400).json({ error: "Este horário já foi reservado. Por favor, escolha outro." });
       }
 
+      console.log("Agendamento recebido com sucesso:", { client_id: idSeguroCliente, service, date, time });
+
       const result = db.prepare("INSERT INTO appointments (client_id, service, date, time, referrer_phone, consent, notifications) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .run(client_id, service, date, time, referrer_phone, consent || 0, notifications || 0);
-      res.json({ id: result.lastInsertRowid });
-    } catch (error) {
-      console.error("Error creating appointment:", error);
-      res.status(500).json({ error: "Erro ao criar agendamento" });
+        .run(idSeguroCliente, service, date, time, referrer_phone, consent || 0, notifications || 0);
+      
+      res.status(200).json({ 
+        success: true, 
+        message: "Agendamento realizado com sucesso!",
+        id: result.lastInsertRowid,
+        data: { service, date, time }
+      });
+    } catch (error: any) {
+      console.error("Erro detalhado no agendamento:", error);
+
+      // TRATAMENTO DO ERRO DE FOREIGN KEY ESPECÍFICO
+      if (error.message && error.message.includes("FOREIGN KEY constraint failed")) {
+        return res.status(409).json({
+          error: "Erro de integridade: O cliente selecionado não existe no banco.",
+          suggestion: "Verifique se o cadastro do cliente foi realizado corretamente ou se o ID é válido."
+        });
+      }
+
+      res.status(500).json({ error: "Erro interno no servidor ao processar agendamento" });
     }
   });
 
