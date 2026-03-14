@@ -256,7 +256,7 @@ async function startServer() {
 
   app.post(["/api/appointments", "/api/appointments/"], (req, res) => {
     try {
-      const { client_id, service, date, time, referrer_phone, consent, notifications } = req.body;
+      const { client_id, service, date, time, referrer_phone } = req.body;
       
       console.log(`[APPOINTMENT] New request from client_id: ${client_id}`, { service, date, time });
 
@@ -285,8 +285,8 @@ async function startServer() {
         return res.status(400).json({ error: "Este horário já foi reservado. Por favor, escolha outro." });
       }
 
-      const result = db.prepare("INSERT INTO appointments (client_id, service, date, time, referrer_phone, consent, notifications) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .run(numericClientId, service, date, time, referrer_phone, consent || 0, notifications || 0);
+      const result = db.prepare("INSERT INTO appointments (client_id, service, date, time, referrer_phone) VALUES (?, ?, ?, ?, ?)")
+        .run(numericClientId, service, date, time, referrer_phone || null);
       
       console.log(`[APPOINTMENT] Created successfully: ID ${result.lastInsertRowid}`);
 
@@ -297,8 +297,8 @@ async function startServer() {
       });
     } catch (error: any) {
       console.error("Erro ao criar agendamento:", error);
-      if (error.message && error.message.includes("FOREIGN KEY")) {
-        return res.status(400).json({ error: "Erro de integridade: Cliente não encontrado. Tente fazer login novamente." });
+      if (error.message && (error.message.includes("FOREIGN KEY") || error.message.includes("foreign key"))) {
+        return res.status(400).json({ error: "Erro de conexão com seu perfil. Por favor, saia e entre novamente para atualizar sua sessão." });
       }
       res.status(500).json({ error: "Erro interno ao processar agendamento", details: error.message });
     }

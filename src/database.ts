@@ -16,6 +16,7 @@ console.log(`[DB] Initializing database at: ${dbPath} (isVercel: ${isVercel})`);
 let db: any;
 try {
   db = new DatabaseConstructor(dbPath);
+  db.exec("PRAGMA foreign_keys = ON;");
   console.log(`[DB] Database connection successful`);
 } catch (err) {
   console.error(`[DB] Database connection failed:`, err);

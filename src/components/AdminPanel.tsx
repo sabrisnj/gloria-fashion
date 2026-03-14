@@ -284,7 +284,6 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                       <div className="bg-white p-3 rounded-lg text-xs space-y-1 border border-peach/10">
                         <p className="text-ink"><strong>Serviço:</strong> {a.service}</p>
                         <p className="text-ink"><strong>Data/Hora:</strong> {a.date} às {a.time}</p>
-                        {a.referrer_phone && <p className="text-ink"><strong>Indicado por:</strong> {a.referrer_phone}</p>}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {a.status === 'aguardando aprovação' && (

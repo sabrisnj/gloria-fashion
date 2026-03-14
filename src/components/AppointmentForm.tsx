@@ -28,7 +28,6 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
   const [service, setService] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [referrer, setReferrer] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -84,8 +83,7 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
           client_id: client.id,
           service,
           date,
-          time,
-          referrer_phone: referrer || null
+          time
         }),
       });
       
@@ -318,19 +316,6 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
                     <p className="font-medium text-ink">{date && format(parseISO(date), "dd/MM/yyyy")} às {time}</p>
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-xs font-bold uppercase text-gray-custom flex items-center gap-2">
-                  <UserPlus size={14} /> Quem indicou? (Opcional)
-                </label>
-                <input 
-                  type="text" 
-                  placeholder="Nome, WhatsApp ou Código (GLORIA-ID)" 
-                  className="input-field border-gray-200"
-                  value={referrer}
-                  onChange={(e) => setReferrer(e.target.value)}
-                />
               </div>
             </div>
 

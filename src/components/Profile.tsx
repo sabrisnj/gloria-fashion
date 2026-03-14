@@ -445,7 +445,6 @@ export function Profile({ client, onLogout, accessibility, setAccessibility }: P
                   <li>Selecione a data (Seg–Sáb)</li>
                   <li>Escolha o horário disponível</li>
                   <li>Confirme seus dados e WhatsApp</li>
-                  <li>Informe quem te indicou (opcional)</li>
                 </ol>
                 <p className="mt-2">Após enviar, aguarde a confirmação da nossa equipe via WhatsApp.</p>
                 <p className="font-bold text-xs text-primary mt-1">Horário de atendimento: Seg–Sáb, 09h às 19h30</p>
