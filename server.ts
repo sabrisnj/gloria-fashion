@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
-import db from "./src/database.js";
+import db from "./src/database.ts";
 import path from "path";
 import { fileURLToPath } from "url";
 
