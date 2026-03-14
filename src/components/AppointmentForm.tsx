@@ -41,7 +41,7 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
     if (date) {
       setTime(''); // Reset time when date changes
       setLoadingTimes(true);
-      fetch(`/api/appointments/available-times?date=${date}`)
+      fetch(`/api/available-times?date=${date}`)
         .then(res => res.json())
         .then(data => {
           setAvailableTimes(data);

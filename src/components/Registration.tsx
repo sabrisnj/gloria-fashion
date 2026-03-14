@@ -14,19 +14,28 @@ export function Registration({ onRegister, onAdminLogin }: RegistrationProps) {
   const [loading, setLoading] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !whatsapp) return;
 
     setLoading(true);
+    setError(null);
     try {
-      console.log('Attempting registration:', { name, whatsapp });
-      const response = await fetch('/api/auth/client', {
+      const apiUrl = '/api/register';
+      console.log(`[DEBUG] Fetching: ${window.location.origin}${apiUrl}`);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ name, whatsapp }),
       });
+      
+      console.log(`[DEBUG] Response Status: ${response.status} (${response.statusText})`);
       
       let data;
       const contentType = response.headers.get("content-type");
@@ -48,8 +57,9 @@ export function Registration({ onRegister, onAdminLogin }: RegistrationProps) {
       } else {
         throw new Error(data.error || 'Erro ao realizar cadastro');
       }
-    } catch (error: any) {
-      alert(error.message || 'Erro ao realizar cadastro. Tente novamente.');
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      setError(err.message || 'Erro ao realizar cadastro. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -85,6 +95,11 @@ export function Registration({ onRegister, onAdminLogin }: RegistrationProps) {
 
         {!showAdmin ? (
           <form onSubmit={handleSubmit} className="card space-y-4 border-peach/20 shadow-peach/5">
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-medium animate-pulse">
+                {error}
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-xs font-semibold uppercase tracking-wider text-gray-custom ml-1">Seu Nome</label>
               <input 

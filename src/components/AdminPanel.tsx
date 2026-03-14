@@ -25,7 +25,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       const [aRes, pRes, vRes] = await Promise.all([
         fetch('/api/appointments').then(res => res.json()),
         fetch('/api/products').then(res => res.json()),
-        fetch('/api/admin/visits').then(res => res.json())
+        fetch('/api/visits').then(res => res.json())
       ]);
       setAppointments(aRes);
       setProducts(pRes);
@@ -39,7 +39,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
 
   const handleStatusChange = async (id: number, status: string) => {
     try {
-      const response = await fetch(`/api/admin/appointments/${id}`, {
+      const response = await fetch(`/api/appointments?id=${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -59,7 +59,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
 
   const handleVisitStatusChange = async (id: number, status: string) => {
     try {
-      await fetch(`/api/admin/visits/${id}`, {
+      await fetch(`/api/visits?id=${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),

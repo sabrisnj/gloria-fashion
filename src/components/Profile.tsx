@@ -19,7 +19,7 @@ export function Profile({ client, onLogout, accessibility, setAccessibility }: P
 
   useEffect(() => {
     if (client) {
-      fetch(`/api/vouchers/${client.id}`)
+      fetch(`/api/vouchers?client_id=${client.id}`)
         .then(res => res.json())
         .then(vData => {
           setVouchers(vData);

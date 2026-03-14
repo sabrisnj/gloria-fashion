@@ -21,27 +21,47 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Logging middleware
+  // Logging middleware for debugging mobile requests
   app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    if (req.url.startsWith('/api')) {
+      console.log(`[API REQUEST] ${new Date().toISOString()} - ${req.method} ${req.url}`);
+    }
     next();
   });
 
   // --- API ROUTES ---
 
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", time: new Date().toISOString() });
+    res.json({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      env: process.env.NODE_ENV || 'development'
+    });
+  });
+
+  // Diagnostic route to check registered paths
+  app.get("/api/debug/routes", (req, res) => {
+    const routes = app._router.stack
+      .filter((r: any) => r.route)
+      .map((r: any) => ({
+        path: r.route.path,
+        methods: r.route.methods
+      }));
+    res.json(routes);
   });
 
   // Auth / Client Registration
-  app.post("/api/auth/client", (req, res) => {
+  app.post(["/api/auth/client", "/api/auth/client/"], (req, res) => {
     const { name, whatsapp } = req.body;
-    console.log('Registration request:', { name, whatsapp });
+    const cleanWhatsapp = whatsapp ? String(whatsapp).replace(/\D/g, '') : '';
+    
+    console.log('[AUTH] Request body:', req.body);
+    
     try {
-      if (!name || !whatsapp) {
+      if (!name || !cleanWhatsapp) {
         return res.status(400).json({ error: "Nome e WhatsApp são obrigatórios" });
       }
-      const existing = db.prepare("SELECT * FROM clients WHERE whatsapp = ?").get(whatsapp);
+      const existing = db.prepare("SELECT * FROM clients WHERE whatsapp = ?").get(cleanWhatsapp);
       if (existing) {
         console.log('Existing client found:', existing.id);
         db.prepare("UPDATE clients SET last_access = CURRENT_TIMESTAMP WHERE id = ?").run(existing.id);
@@ -131,7 +151,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/appointments", (req, res) => {
+  app.post(["/api/appointments", "/api/appointments/"], (req, res) => {
     try {
       const { client_id, service, date, time, referrer_phone, consent, notifications } = req.body;
       if (!client_id || !service || !date || !time) {
