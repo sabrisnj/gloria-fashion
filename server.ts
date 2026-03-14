@@ -368,8 +368,11 @@ async function startServer() {
       }
         
       res.json({ success: true, id: result.lastInsertRowid, status });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error during check-in:", error);
+      if (error.message && (error.message.includes("FOREIGN KEY") || error.message.includes("foreign key"))) {
+        return res.status(400).json({ error: "Erro de conexão com seu perfil. Por favor, saia e entre novamente para atualizar sua sessão." });
+      }
       res.status(500).json({ error: "Erro ao realizar check-in" });
     }
   });
@@ -442,6 +445,25 @@ async function startServer() {
     const info = db.prepare("SELECT * FROM store_info").all();
     const result = info.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
     res.json(result);
+  });
+
+  app.post("/api/admin/store-info", (req, res) => {
+    try {
+      const settings = req.body;
+      const stmt = db.prepare("INSERT OR REPLACE INTO store_info (key, value) VALUES (?, ?)");
+      
+      const transaction = db.transaction((data) => {
+        for (const [key, value] of Object.entries(data)) {
+          stmt.run(key, String(value));
+        }
+      });
+      
+      transaction(settings);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating store info:", error);
+      res.status(500).json({ error: "Erro ao atualizar informações da loja" });
+    }
   });
 
   // Global error handler
