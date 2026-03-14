@@ -22,6 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'PATCH') {
     const { id } = req.query;
     const { status } = req.body;
+    if (!id) return res.status(400).json({ error: "ID é obrigatório" });
     db.prepare("UPDATE appointments SET status = ? WHERE id = ?").run(status, id);
     return res.status(200).json({ success: true });
   }

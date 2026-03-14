@@ -51,7 +51,7 @@ async function startServer() {
   });
 
   // Auth / Client Registration
-  app.post(["/api/auth/client", "/api/auth/client/"], (req, res) => {
+  app.post(["/api/register", "/api/register/"], (req, res) => {
     const { name, whatsapp } = req.body;
     const cleanWhatsapp = whatsapp ? String(whatsapp).replace(/\D/g, '') : '';
     
@@ -67,12 +67,12 @@ async function startServer() {
         db.prepare("UPDATE clients SET last_access = CURRENT_TIMESTAMP WHERE id = ?").run(existing.id);
         return res.json(existing);
       }
-      const result = db.prepare("INSERT INTO clients (name, whatsapp) VALUES (?, ?)").run(name, whatsapp);
+      const result = db.prepare("INSERT INTO clients (name, whatsapp) VALUES (?, ?)").run(name, cleanWhatsapp);
       const newUser = db.prepare("SELECT * FROM clients WHERE id = ?").get(result.lastInsertRowid);
       console.log('New client created:', newUser.id);
       res.json(newUser);
     } catch (error) {
-      console.error("Error in /api/auth/client:", error);
+      console.error("Error in /api/register:", error);
       res.status(500).json({ error: "Erro ao autenticar cliente no servidor" });
     }
   });
@@ -173,10 +173,12 @@ async function startServer() {
     }
   });
 
-  app.patch("/api/admin/appointments/:id", (req, res) => {
+  app.patch(["/api/appointments", "/api/appointments/"], (req, res) => {
     try {
       const { status } = req.body;
-      db.prepare("UPDATE appointments SET status = ? WHERE id = ?").run(status, req.params.id);
+      const { id } = req.query;
+      if (!id) return res.status(400).json({ error: "ID é obrigatório" });
+      db.prepare("UPDATE appointments SET status = ? WHERE id = ?").run(status, id);
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating appointment:", error);
@@ -185,8 +187,10 @@ async function startServer() {
   });
 
   // Vouchers
-  app.get("/api/vouchers/:client_id", (req, res) => {
-    const vouchers = db.prepare("SELECT * FROM vouchers WHERE client_id = ?").all(req.params.client_id);
+  app.get("/api/vouchers", (req, res) => {
+    const { client_id } = req.query;
+    if (!client_id) return res.status(400).json({ error: "Client ID é obrigatório" });
+    const vouchers = db.prepare("SELECT * FROM vouchers WHERE client_id = ?").all(client_id);
     res.json(vouchers);
   });
 
@@ -243,10 +247,13 @@ async function startServer() {
     }
   });
 
-  app.patch("/api/admin/visits/:id", (req, res) => {
+  app.patch(["/api/visits", "/api/visits/"], (req, res) => {
     try {
       const { status } = req.body;
-      const visit = db.prepare("SELECT * FROM visits WHERE id = ?").get(req.params.id);
+      const { id } = req.query;
+      if (!id) return res.status(400).json({ error: "ID é obrigatório" });
+      
+      const visit = db.prepare("SELECT * FROM visits WHERE id = ?").get(id) as any;
       
       if (visit && status === 'confirmado' && visit.status === 'pendente') {
         // Logic to give vouchers when manual check-in is approved
@@ -270,11 +277,21 @@ async function startServer() {
         }
       }
       
-      db.prepare("UPDATE visits SET status = ? WHERE id = ?").run(status, req.params.id);
+      db.prepare("UPDATE visits SET status = ? WHERE id = ?").run(status, id);
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating visit:", error);
       res.status(500).json({ error: "Erro ao atualizar visita" });
+    }
+  });
+
+  app.get("/api/users", (req, res) => {
+    try {
+      const users = db.prepare("SELECT * FROM clients ORDER BY name ASC").all();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Erro ao buscar usuários" });
     }
   });
 
