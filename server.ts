@@ -377,7 +377,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/admin/visits", (req, res) => {
+  app.get("/api/visits", (req, res) => {
     try {
       const visits = db.prepare(`
         SELECT v.*, c.name as client_name, c.whatsapp as client_whatsapp 
