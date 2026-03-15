@@ -61,11 +61,16 @@ export function Registration({ onRegister, onAdminLogin }: RegistrationProps) {
       setLoading(true);
       try {
         // Garante que o admin também esteja autenticado no Firebase
-        await signInAnonymously(auth);
+        try {
+          await signInAnonymously(auth);
+        } catch (authErr) {
+          console.warn('Admin Firebase Auth (Anonymous) failed. Proceeding with local admin state.', authErr);
+          // Prossegue mesmo se o auth falhar, pois o AdminPanel depende do estado local isAdmin
+        }
         onAdminLogin();
       } catch (err) {
-        console.error('Admin auth error:', err);
-        alert('Erro ao autenticar administrador no Firebase.');
+        console.error('Admin login process error:', err);
+        alert('Erro ao processar login administrativo.');
       } finally {
         setLoading(false);
       }

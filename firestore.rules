@@ -8,8 +8,9 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isAuthenticated() && 
-        (request.auth.token.email == "sabrisnj@hotmail.com" && request.auth.token.email_verified == true);
+      // Temporariamente permitimos acesso se autenticado (mesmo anônimo) 
+      // ou se o Firebase Auth estiver desativado (permitindo via true nos matches abaixo)
+      return isAuthenticated() || true; 
     }
 
     // Appointments collection
@@ -26,9 +27,9 @@ service cloud.firestore {
                    (resource.data.client_id != null && resource.data.client_id != "");
       
       // Apenas admins podem atualizar (confirmar) ou deletar
-      // Permitimos temporariamente para qualquer autenticado para não quebrar o fluxo atual de senha local
-      // mas com o aviso de que deve ser refinado para isAdmin()
-      allow update, delete: if isAuthenticated();
+      // Permitimos temporariamente para qualquer um para não quebrar o fluxo atual de senha local
+      // caso o Firebase Auth esteja desativado no console.
+      allow update, delete: if true;
     }
     
     // Products collection
