@@ -29,13 +29,26 @@ export interface Appointment {
 }
 
 export interface Visit {
-  id: number;
+  id: string;
   client_id: string;
   client_name?: string;
   client_whatsapp?: string;
   referral_code?: string;
   status: 'confirmado' | 'pendente' | 'rejeitado';
   created_at: string;
+}
+
+export interface Quote {
+  id: string;
+  client_id: string;
+  client_name: string;
+  client_whatsapp: string;
+  service_details: string;
+  status: 'solicitado' | 'enviado' | 'cancelado';
+  price_offered?: number;
+  admin_notes?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Voucher {

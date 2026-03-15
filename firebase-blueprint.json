@@ -69,6 +69,26 @@
       "properties": {
         "isBlocked": { "type": "boolean" }
       }
+    },
+    "Quote": {
+      "title": "Quote",
+      "description": "Uma solicitação de orçamento para serviço de divulgação.",
+      "type": "object",
+      "properties": {
+        "client_id": { "type": "string" },
+        "client_name": { "type": "string" },
+        "client_whatsapp": { "type": "string" },
+        "service_details": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["solicitado", "enviado", "cancelado"]
+        },
+        "price_offered": { "type": "number" },
+        "admin_notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["client_id", "client_name", "client_whatsapp", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -91,6 +111,10 @@
     "settings": {
       "schema": "Setting",
       "description": "Configurações do sistema."
+    },
+    "quotes": {
+      "schema": "Quote",
+      "description": "Coleção de orçamentos."
     }
   }
 }

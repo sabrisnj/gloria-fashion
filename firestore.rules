@@ -61,5 +61,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth.uid == userId || isAdmin();
     }
+
+    // Quotes collection
+    match /quotes/{quoteId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.client_id == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
   }
 }

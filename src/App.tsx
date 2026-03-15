@@ -87,7 +87,7 @@ export default function App() {
       <Router>
         <Layout client={client} isAdmin={isAdmin} onLogout={handleLogout} accessibility={accessibility} setAccessibility={setAccessibility}>
           <Routes>
-            <Route path="/" element={isAdmin ? <Navigate to="/admin" /> : <Catalog />} />
+            <Route path="/" element={isAdmin ? <Navigate to="/admin" /> : <Catalog client={client} />} />
             <Route path="/agendar" element={<AppointmentForm client={client} isAdmin={isAdmin} />} />
             <Route path="/pagamento" element={<Payment client={client} />} />
             <Route path="/perfil" element={<Profile client={client} onLogout={handleLogout} accessibility={accessibility} setAccessibility={setAccessibility} />} />

@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import * as React from 'react';
 import { motion } from 'motion/react';
-import { ShieldCheck, LogOut, Package, Calendar, Users, Ticket, Settings, Plus, Edit2, Trash2, Check, X, MapPin, CheckCircle, Home, Filter, FileText, Megaphone, Search } from 'lucide-react';
+import { ShieldCheck, LogOut, Package, Calendar, Users, Ticket, Settings, Plus, Edit2, Trash2, Check, X, MapPin, CheckCircle, Home, Filter, FileText, Megaphone, Search, Send } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, limit } from 'firebase/firestore';
-import { Product, Appointment, Client, Voucher, Visit } from '../types';
+import { Product, Appointment, Client, Quote, Visit } from '../types';
 import { formatCurrency } from '../utils';
 import { format } from 'date-fns';
-import { collection as firestoreCollection, getDocs as firestoreGetDocs, query as firestoreQuery, where as firestoreWhere } from 'firebase/firestore';
+import { collection as firestoreCollection, getDocs as firestoreGetDocs, query as firestoreQuery, where as firestoreWhere, setDoc } from 'firebase/firestore';
 
 const TIME_SLOTS = [
   "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
@@ -20,11 +20,12 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ onLogout }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'admin' | 'appointments' | 'products' | 'clients' | 'vouchers' | 'settings' | 'visits'>('admin');
+  const [activeTab, setActiveTab] = useState<'admin' | 'appointments' | 'products' | 'clients' | 'vouchers' | 'settings' | 'visits' | 'quotes'>('admin');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSchedulingBlocked, setIsSchedulingBlocked] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -43,6 +44,11 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
   const [newApptService, setNewApptService] = useState('Piercing');
   const [newApptDate, setNewApptDate] = useState('');
   const [newApptTime, setNewApptTime] = useState('');
+
+  // Quote handling
+  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+  const [quotePrice, setQuotePrice] = useState('');
+  const [quoteNotes, setQuoteNotes] = useState('');
 
   useEffect(() => {
     // Fetch Appointments
@@ -95,11 +101,24 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       console.warn("Erro ao buscar clientes:", err);
     });
 
+    // Fetch Quotes
+    const qQuotes = query(collection(db, 'quotes'), orderBy('createdAt', 'desc'), limit(100));
+    const unsubQuotes = onSnapshot(qQuotes, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any as Quote[];
+      setQuotes(docs);
+    }, (err) => {
+      console.warn("Erro ao buscar orçamentos:", err);
+    });
+
     return () => {
       unsubAppts();
       unsubProducts();
       unsubVisits();
       unsubClients();
+      unsubQuotes();
     };
   }, []);
 
@@ -258,6 +277,48 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
     }
   };
 
+  const handleSendQuote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedQuote) return;
+
+    try {
+      setActionLoading(selectedQuote.id);
+      const docRef = doc(db, 'quotes', selectedQuote.id);
+      await updateDoc(docRef, {
+        status: 'enviado',
+        price_offered: Number(quotePrice),
+        admin_notes: quoteNotes,
+        updatedAt: new Date().toISOString()
+      });
+      
+      // Enviar via WhatsApp (opcional, mas bom para UX)
+      const message = `Olá ${selectedQuote.client_name}! Seu orçamento da Glória Fashion está pronto.\n\nServiço: ${selectedQuote.service_details}\nValor: ${formatCurrency(Number(quotePrice))}\nObservações: ${quoteNotes}\n\nObrigado pela preferência!`;
+      const encodedMsg = encodeURIComponent(message);
+      window.open(`https://wa.me/${selectedQuote.client_whatsapp.replace(/\D/g, '')}?text=${encodedMsg}`, '_blank');
+      
+      setSelectedQuote(null);
+      setQuotePrice('');
+      setQuoteNotes('');
+      alert('Orçamento enviado com sucesso!');
+    } catch (error: any) {
+      alert('Erro ao enviar orçamento: ' + error.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCancelQuote = async (id: string) => {
+    if (!confirm('Deseja realmente cancelar este orçamento?')) return;
+    try {
+      setActionLoading(id);
+      await updateDoc(doc(db, 'quotes', id), { status: 'cancelado', updatedAt: new Date().toISOString() });
+    } catch (error: any) {
+      alert('Erro ao cancelar orçamento.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
@@ -302,6 +363,13 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
         />
         <TabButton active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={Package} label="Produtos" />
         <TabButton active={activeTab === 'clients'} onClick={() => setActiveTab('clients')} icon={Users} label="Clientes" />
+        <TabButton 
+          active={activeTab === 'quotes'} 
+          onClick={() => setActiveTab('quotes')} 
+          icon={Megaphone} 
+          label="Orçamentos" 
+          badge={quotes.filter(q => q.status === 'solicitado').length}
+        />
         <TabButton active={activeTab === 'vouchers'} onClick={() => setActiveTab('vouchers')} icon={Ticket} label="Cupons" />
         <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={Settings} label="Loja" />
       </div>
@@ -338,6 +406,13 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                   icon={Search}
                   label="Ver Todos os Agendamentos"
                   color="bg-ink"
+                />
+                <MenuButton 
+                  onClick={() => setActiveTab('quotes')}
+                  icon={Megaphone}
+                  label="Orçamentos Solicitados"
+                  color="bg-orange-500"
+                  badge={quotes.filter(q => q.status === 'solicitado').length}
                 />
               </div>
 
@@ -674,6 +749,120 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                   <div className="card bg-gray-50 text-center py-20 border-dashed border-gray-200">
                     <Users className="text-gray-300 mx-auto mb-2" size={48} />
                     <p className="text-gray-custom">Nenhum cliente cadastrado.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'quotes' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-xl font-bold text-ink">Gestão de Orçamentos</h2>
+                <div className="flex gap-2">
+                  <span className="text-[10px] font-bold uppercase text-orange-600 bg-orange-50 px-2 py-1 rounded-lg border border-orange-100">
+                    {quotes.filter(q => q.status === 'solicitado').length} Pendentes
+                  </span>
+                </div>
+              </div>
+
+              {selectedQuote && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="card space-y-4 border-primary/20 bg-primary/5"
+                >
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-ink">Enviar Orçamento para {selectedQuote.client_name}</h3>
+                    <button onClick={() => setSelectedQuote(null)} className="text-gray-400"><X size={20}/></button>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-primary/10 text-xs text-gray-custom italic">
+                    "{selectedQuote.service_details}"
+                  </div>
+                  <form onSubmit={handleSendQuote} className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-gray-custom ml-1">Valor do Serviço (R$)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        placeholder="Ex: 150.00" 
+                        className="input-field text-sm" 
+                        value={quotePrice}
+                        onChange={e => setQuotePrice(e.target.value)}
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-gray-custom ml-1">Observações / Detalhes</label>
+                      <textarea 
+                        placeholder="Descreva o que está incluso no valor..." 
+                        className="input-field text-sm min-h-[80px] py-2" 
+                        value={quoteNotes}
+                        onChange={e => setQuoteNotes(e.target.value)}
+                        required 
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2">
+                      <Send size={16} />
+                      Enviar via WhatsApp
+                    </button>
+                  </form>
+                </motion.div>
+              )}
+
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase text-gray-custom tracking-widest">Solicitações Recentes</h3>
+                {quotes.length > 0 ? (
+                  quotes.map(q => (
+                    <div key={q.id} className={`card space-y-3 border-peach/20 ${q.status === 'solicitado' ? 'bg-orange-50/30' : ''}`}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-ink">{q.client_name}</h4>
+                          <p className="text-xs text-gray-custom">{q.client_whatsapp}</p>
+                        </div>
+                        <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${
+                          q.status === 'solicitado' ? 'bg-orange-100 text-orange-600' : 
+                          q.status === 'enviado' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {q.status}
+                        </span>
+                      </div>
+                      
+                      <div className="bg-white/80 p-3 rounded-xl border border-peach/10 text-xs">
+                        <p className="text-ink leading-relaxed"><strong>Solicitação:</strong> {q.service_details}</p>
+                        {q.status === 'enviado' && (
+                          <div className="mt-2 pt-2 border-t border-peach/5 space-y-1">
+                            <p className="text-primary font-bold">Valor: {formatCurrency(q.price_offered || 0)}</p>
+                            <p className="text-gray-custom"><strong>Notas:</strong> {q.admin_notes}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        {q.status === 'solicitado' && (
+                          <button 
+                            onClick={() => {
+                              setSelectedQuote(q);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="flex-grow flex items-center justify-center gap-1 bg-primary text-white py-2 rounded-xl text-xs font-bold hover:bg-primary/90 transition-all"
+                          >
+                            <Edit2 size={14} /> Responder
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => handleCancelQuote(q.id)}
+                          className="px-3 flex items-center justify-center bg-gray-100 text-gray-400 py-2 rounded-xl text-xs font-bold hover:bg-red-50 hover:text-red-500 transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="card bg-gray-50 text-center py-10 border-dashed border-gray-200">
+                    <Megaphone className="text-gray-300 mx-auto mb-2" size={32} />
+                    <p className="text-gray-custom italic text-sm">Nenhum orçamento solicitado ainda.</p>
                   </div>
                 )}
               </div>

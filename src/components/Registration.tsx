@@ -39,13 +39,49 @@ export function Registration({ onRegister, onAdminLogin }: RegistrationProps) {
         }
       }
 
-      const clientData: Client = {
-        id: uid,
-        name,
-        whatsapp,
-        points: 0,
-        vouchers: []
-      };
+      // Verifica se já existe um cliente com este WhatsApp
+      const { collection, query, where, getDocs, addDoc, updateDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      
+      const q = query(collection(db, 'clients'), where('whatsapp', '==', whatsapp));
+      const querySnapshot = await getDocs(q);
+      
+      let clientData: Client;
+
+      if (!querySnapshot.empty) {
+        // Cliente já existe, recupera os dados
+        const existingDoc = querySnapshot.docs[0];
+        const data = existingDoc.data();
+        clientData = {
+          id: existingDoc.id,
+          name: data.name,
+          whatsapp: data.whatsapp,
+          points: data.points || 0,
+          vouchers: data.vouchers || []
+        };
+        
+        // Atualiza o último acesso
+        await updateDoc(doc(db, 'clients', existingDoc.id), {
+          last_access: new Date().toISOString()
+        });
+      } else {
+        // Novo cliente, cadastra no Firestore
+        const newClient = {
+          name,
+          whatsapp,
+          points: 0,
+          vouchers: [],
+          last_access: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        };
+        
+        const docRef = await addDoc(collection(db, 'clients'), newClient);
+        clientData = {
+          id: docRef.id,
+          ...newClient
+        };
+      }
+
       onRegister(clientData);
     } catch (err: any) {
       console.error('Registration error:', err);

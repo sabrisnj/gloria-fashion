@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShoppingBag, 
@@ -6,10 +6,15 @@ import {
   ChevronDown,
   ExternalLink, 
   Heart,
-  Package
+  Package,
+  Send,
+  X
 } from 'lucide-react';
 
 import { Link } from 'react-router-dom';
+import { Client } from '../types';
+import { db } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 const CATALOG_ITEMS = [
   "Conteúdo digital",
@@ -31,8 +36,40 @@ const CATALOG_ITEMS = [
   "Lingeries"
 ];
 
-export function Catalog() {
+export function Catalog({ client }: { client: Client | null }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [quoteDetails, setQuoteDetails] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [quoteSuccess, setQuoteSuccess] = useState(false);
+
+  const handleRequestQuote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!client || !quoteDetails.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'quotes'), {
+        client_id: client.id,
+        client_name: client.name,
+        client_whatsapp: client.whatsapp,
+        service_details: quoteDetails,
+        status: 'solicitado',
+        createdAt: new Date().toISOString()
+      });
+      setQuoteSuccess(true);
+      setQuoteDetails('');
+      setTimeout(() => {
+        setShowQuoteModal(false);
+        setQuoteSuccess(false);
+      }, 3000);
+    } catch (err) {
+      console.error('Error requesting quote:', err);
+      alert('Erro ao solicitar orçamento. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -97,20 +134,76 @@ export function Catalog() {
               </div>
               <span className="text-[10px] font-bold uppercase leading-tight">Agende sua colocação<br/>(piercing e alargadores)</span>
             </Link>
-            <a 
-              href="https://wa.me/5511950696045?text=Olá! Gostaria de fazer um orçamento."
-              target="_blank"
-              rel="noopener noreferrer"
+            <button 
+              onClick={() => setShowQuoteModal(true)}
               className="flex flex-col items-center justify-center p-4 bg-ink text-white rounded-2xl shadow-lg text-center gap-2 hover:scale-105 transition-transform"
             >
               <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
                 <ShoppingBag size={20} />
               </div>
               <span className="text-[10px] font-bold uppercase leading-tight">Faça seu orçamento<br/>(divulgue seu produto_serviço)</span>
-            </a>
+            </button>
           </div>
         </div>
       </header>
+
+      {/* Quote Modal */}
+      <AnimatePresence>
+        {showQuoteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-display font-bold text-ink">Solicitar Orçamento</h3>
+                  <button onClick={() => setShowQuoteModal(false)} className="text-gray-400 hover:text-ink">
+                    <X size={24} />
+                  </button>
+                </div>
+
+                {quoteSuccess ? (
+                  <div className="py-8 text-center space-y-4">
+                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
+                      <Send size={32} />
+                    </div>
+                    <p className="font-bold text-ink">Solicitação enviada com sucesso!</p>
+                    <p className="text-xs text-gray-custom">Nossa equipe entrará em contato em breve pelo seu WhatsApp.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleRequestQuote} className="space-y-4">
+                    <p className="text-xs text-gray-custom leading-relaxed">
+                      Descreva brevemente o produto ou serviço que você deseja divulgar em nossas redes sociais.
+                    </p>
+                    <textarea 
+                      className="input-field min-h-[120px] py-3 resize-none"
+                      placeholder="Ex: Gostaria de divulgar minha loja de bolos artesanais no Instagram da Glória Fashion..."
+                      value={quoteDetails}
+                      onChange={(e) => setQuoteDetails(e.target.value)}
+                      required
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={isSubmitting}
+                      className="btn-primary w-full flex items-center justify-center gap-2"
+                    >
+                      {isSubmitting ? 'Enviando...' : (
+                        <>
+                          <Send size={18} />
+                          Enviar Solicitação
+                        </>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Collapsed Product List */}
       <div id="nossos-produtos" className="card overflow-hidden border-peach/30 bg-white/50 backdrop-blur-sm">
