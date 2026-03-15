@@ -49,6 +49,9 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [quotePrice, setQuotePrice] = useState('');
   const [quoteNotes, setQuoteNotes] = useState('');
+  const [notifyWhatsapp, setNotifyWhatsapp] = useState(true);
+  const [notifyPush, setNotifyPush] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState(false);
 
   useEffect(() => {
     // Fetch Appointments
@@ -288,17 +291,35 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
         status: 'enviado',
         price_offered: Number(quotePrice),
         admin_notes: quoteNotes,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        notification_sent: {
+          whatsapp: notifyWhatsapp,
+          push: notifyPush,
+          email: notifyEmail
+        }
       });
       
-      // Enviar via WhatsApp (opcional, mas bom para UX)
-      const message = `Olá ${selectedQuote.client_name}! Seu orçamento da Glória Fashion está pronto.\n\nServiço: ${selectedQuote.service_details}\nValor: ${formatCurrency(Number(quotePrice))}\nObservações: ${quoteNotes}\n\nObrigado pela preferência!`;
-      const encodedMsg = encodeURIComponent(message);
-      window.open(`https://wa.me/${selectedQuote.client_whatsapp.replace(/\D/g, '')}?text=${encodedMsg}`, '_blank');
+      // Enviar via WhatsApp (se selecionado)
+      if (notifyWhatsapp) {
+        const message = `Olá ${selectedQuote.client_name}! Seu orçamento da Glória Fashion está pronto.\n\nServiço: ${selectedQuote.service_details}\nValor: ${formatCurrency(Number(quotePrice))}\nObservações: ${quoteNotes}\n\nObrigado pela preferência!`;
+        const encodedMsg = encodeURIComponent(message);
+        window.open(`https://wa.me/${selectedQuote.client_whatsapp.replace(/\D/g, '')}?text=${encodedMsg}`, '_blank');
+      }
+      
+      // Simulação de Push/Email (já que não temos backend real de envio de email/push configurado aqui)
+      if (notifyEmail && selectedQuote.client_email) {
+        console.log(`Simulando envio de e-mail para ${selectedQuote.client_email}`);
+      }
+      if (notifyPush) {
+        console.log(`Simulando envio de notificação push para o cliente ${selectedQuote.client_id}`);
+      }
       
       setSelectedQuote(null);
       setQuotePrice('');
       setQuoteNotes('');
+      setNotifyWhatsapp(true);
+      setNotifyPush(false);
+      setNotifyEmail(false);
       alert('Orçamento enviado com sucesso!');
     } catch (error: any) {
       try {
@@ -819,9 +840,46 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                         required 
                       />
                     </div>
+
+                    <div className="space-y-2 pt-2">
+                      <p className="text-[10px] font-bold uppercase text-gray-custom ml-1">Notificar via:</p>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            checked={notifyWhatsapp}
+                            onChange={e => setNotifyWhatsapp(e.target.checked)}
+                          />
+                          <span className="text-xs text-ink">WhatsApp</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            checked={notifyPush}
+                            onChange={e => setNotifyPush(e.target.checked)}
+                          />
+                          <span className="text-xs text-ink">Push</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            checked={notifyEmail}
+                            disabled={!selectedQuote.client_email}
+                            onChange={e => setNotifyEmail(e.target.checked)}
+                          />
+                          <span className={`text-xs ${selectedQuote.client_email ? 'text-ink' : 'text-gray-300'}`}>
+                            E-mail {!selectedQuote.client_email && '(não informado)'}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+
                     <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2">
                       <Send size={16} />
-                      Enviar via WhatsApp
+                      Enviar Orçamento
                     </button>
                   </form>
                 </motion.div>
@@ -848,7 +906,8 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                       <div className="bg-white/80 p-3 rounded-xl border border-peach/10 text-xs space-y-1">
                         <p className="text-ink"><strong>Loja:</strong> {q.store_name}</p>
                         <p className="text-ink"><strong>Instagram:</strong> {q.instagram}</p>
-                        <p className="text-ink"><strong>WhatsApp:</strong> {q.whatsapp_contact}</p>
+                        <p className="text-ink"><strong>WhatsApp:</strong> {q.client_whatsapp}</p>
+                        {q.client_email && <p className="text-ink"><strong>E-mail:</strong> {q.client_email}</p>}
                         <p className="text-ink"><strong>Horário:</strong> {q.best_time}</p>
                         <p className="text-ink"><strong>Tipo:</strong> {q.service_type}</p>
                         <p className="text-ink leading-relaxed mt-1 pt-1 border-t border-peach/5"><strong>Descrição:</strong> {q.service_details}</p>

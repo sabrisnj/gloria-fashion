@@ -44,6 +44,7 @@ export interface Quote {
   client_id: string;
   client_name: string;
   client_whatsapp: string;
+  client_email?: string;
   store_name?: string;
   instagram?: string;
   whatsapp_contact?: string;
@@ -55,6 +56,11 @@ export interface Quote {
   admin_notes?: string;
   createdAt: string;
   updatedAt?: string;
+  notification_sent?: {
+    whatsapp: boolean;
+    push: boolean;
+    email: boolean;
+  };
 }
 
 export interface Voucher {

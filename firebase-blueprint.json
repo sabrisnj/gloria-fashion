@@ -78,6 +78,7 @@
         "client_id": { "type": "string" },
         "client_name": { "type": "string" },
         "client_whatsapp": { "type": "string" },
+        "client_email": { "type": "string" },
         "store_name": { "type": "string" },
         "instagram": { "type": "string" },
         "whatsapp_contact": { "type": "string" },
@@ -91,7 +92,15 @@
         "price_offered": { "type": "number" },
         "admin_notes": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "notification_sent": {
+          "type": "object",
+          "properties": {
+            "whatsapp": { "type": "boolean" },
+            "push": { "type": "boolean" },
+            "email": { "type": "boolean" }
+          }
+        }
       },
       "required": ["client_id", "client_name", "client_whatsapp", "status", "createdAt"]
     }

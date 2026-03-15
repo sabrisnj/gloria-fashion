@@ -40,6 +40,7 @@ export function Catalog({ client }: { client: Client | null }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [storeName, setStoreName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
   const [instagram, setInstagram] = useState('');
   const [whatsappContact, setWhatsappContact] = useState('');
   const [bestTime, setBestTime] = useState('');
@@ -58,6 +59,7 @@ export function Catalog({ client }: { client: Client | null }) {
         client_id: client.id,
         client_name: client.name,
         client_whatsapp: client.whatsapp,
+        client_email: clientEmail,
         store_name: storeName,
         instagram: instagram,
         whatsapp_contact: whatsappContact,
@@ -69,6 +71,7 @@ export function Catalog({ client }: { client: Client | null }) {
       });
       setQuoteSuccess(true);
       setStoreName('');
+      setClientEmail('');
       setInstagram('');
       setWhatsappContact('');
       setBestTime('');
@@ -203,6 +206,18 @@ export function Catalog({ client }: { client: Client | null }) {
                           placeholder="Ex: Minha Loja Fashion"
                           value={storeName}
                           onChange={(e) => setStoreName(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-gray-custom ml-1">E-mail para Retorno</label>
+                        <input 
+                          type="email" 
+                          className="input-field text-sm" 
+                          placeholder="Ex: seuemail@email.com"
+                          value={clientEmail}
+                          onChange={(e) => setClientEmail(e.target.value)}
                           required
                         />
                       </div>
