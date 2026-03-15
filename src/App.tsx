@@ -57,15 +57,8 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        if (user.email === 'sabrisnj@hotmail.com') {
-          setIsAdmin(true);
-        } else if (user.isAnonymous) {
-          // Se for anônimo, o cliente já deve estar no localStorage ou será setado no Registration
-        }
-      } else {
-        // Se deslogar do Firebase, limpa estados locais
-        setIsAdmin(false);
+      if (user && user.isAnonymous) {
+        // Se for anônimo, o cliente já deve estar no localStorage ou será setado no Registration
       }
     });
     return () => unsubscribe();

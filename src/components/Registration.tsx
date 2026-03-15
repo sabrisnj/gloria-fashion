@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Heart, Shield, Lock } from 'lucide-react';
-import { auth, signInAnonymously, GoogleAuthProvider, signInWithPopup } from '../firebase';
+import { auth, signInAnonymously } from '../firebase';
 import { Client } from '../types';
 
 interface RegistrationProps {
@@ -55,46 +55,10 @@ export function Registration({ onRegister, onAdminLogin }: RegistrationProps) {
     }
   };
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
+  const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (adminPassword === 'Gloria2026') {
-      if (loading) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Verifica se já está logado como admin
-        if (auth.currentUser?.email === 'sabrisnj@hotmail.com') {
-          onAdminLogin();
-          return;
-        }
-
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        
-        await signInWithPopup(auth, provider);
-        
-        if (auth.currentUser?.email === 'sabrisnj@hotmail.com') {
-          onAdminLogin();
-        } else {
-          setError('Acesso negado: E-mail não autorizado para administração.');
-          await auth.signOut();
-        }
-      } catch (err: any) {
-        if (err.code === 'auth/cancelled-popup-request') {
-          // Ignora pois uma nova requisição já está em curso
-          return;
-        }
-        if (err.code === 'auth/popup-closed-by-user') {
-          setError('A janela de login foi fechada. Tente novamente.');
-        } else {
-          console.error('Admin login error:', err);
-          setError('Erro ao realizar login administrativo com Google.');
-        }
-      } finally {
-        setLoading(false);
-      }
+      onAdminLogin();
     } else {
       alert('Senha administrativa incorreta.');
     }
