@@ -1,359 +1,178 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Calendar, 
-  List, 
-  Filter,
-  ChevronLeft,
-  CheckCircle,
-  RefreshCw,
-  X,
-  Clock,
-  Calendar as CalendarIcon
+  ShoppingBag, 
+  ChevronRight,
+  ChevronDown,
+  ExternalLink, 
+  Heart,
+  Package
 } from 'lucide-react';
+
 import { Link } from 'react-router-dom';
-import { CATALOG_ITEMS } from '../constants';
-import { Product, Appointment, Client } from '../types';
-import { format, parseISO } from 'date-fns';
-import { Toast, ToastType } from './Toast';
 
-interface CatalogProps {
-  client: Client | null;
-}
+const CATALOG_ITEMS = [
+  "Conteúdo digital",
+  "Body piercing",
+  "Alargadores",
+  "Joias em ouro branco",
+  "Joias em prata",
+  "Folheados",
+  "Bijuterias",
+  "Presentes",
+  "Canecas personalizadas",
+  "Mimos",
+  "Brinquedos",
+  "Cantinho do prazer",
+  "Fantasias",
+  "Produtos 18+",
+  "Moda",
+  "Biquínis",
+  "Lingeries"
+];
 
-export function Catalog({ client }: CatalogProps) {
-  const [view, setView] = useState<'home' | 'my-appointments'>('home');
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  const [reschedulingAppointment, setReschedulingAppointment] = useState<Appointment | null>(null);
-  const [newDate, setNewDate] = useState('');
-  const [newTime, setNewTime] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Filters
-  const [serviceFilter, setServiceFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+export function Catalog() {
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  useEffect(() => {
-    if (view === 'my-appointments' && client) {
-      setLoading(true);
-      fetch(`/api/appointments?client_id=${client.id}`)
-        .then(res => res.json())
-        .then(data => {
-          setAppointments(data);
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error('Error fetching appointments:', err);
-          setLoading(false);
-        });
-    }
-  }, [view, client]);
-
-  const filteredAppointments = appointments.filter(app => {
-    const matchesService = serviceFilter === '' || app.service.toLowerCase().includes(serviceFilter.toLowerCase());
-    const matchesDate = dateFilter === '' || app.date === dateFilter;
-    return matchesService && matchesDate;
-  });
-
-  const handleRescheduleRequest = async () => {
-    if (!reschedulingAppointment || !newDate || !newTime) return;
-
-    setIsSubmitting(true);
-    try {
-      const response = await fetch(`/api/appointments?id=${reschedulingAppointment.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'reagendamento solicitado',
-          requested_date: newDate,
-          requested_time: newTime
-        })
-      });
-
-      if (response.ok) {
-        setToast({ message: 'Solicitação de reagendamento enviada com sucesso!', type: 'success' });
-        setReschedulingAppointment(null);
-        setNewDate('');
-        setNewTime('');
-        // Refresh appointments
-        const data = await fetch(`/api/appointments?client_id=${client?.id}`).then(res => res.json());
-        setAppointments(data);
-      } else {
-        setToast({ message: 'Erro ao enviar solicitação.', type: 'error' });
-      }
-    } catch (error) {
-      setToast({ message: 'Erro de conexão.', type: 'error' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (view === 'my-appointments') {
-    return (
-      <>
-        <div className="space-y-6">
-          <header className="flex items-center gap-4">
-            <button 
-              onClick={() => setView('home')}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <ChevronLeft size={24} />
-            </button>
-            <h1 className="text-2xl font-display font-bold text-ink">Meus Agendamentos</h1>
-          </header>
-
-          <AnimatePresence>
-            {toast && (
-              <Toast 
-                message={toast.message} 
-                type={toast.type} 
-                onClose={() => setToast(null)} 
-              />
-            )}
-          </AnimatePresence>
-
-          {/* Filters */}
-          <div className="card p-4 space-y-4 bg-white shadow-sm border-peach/20">
-            <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
-              <Filter size={14} />
-              <span>Filtrar</span>
-            </div>
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-gray-400">Serviço</label>
-                <select 
-                  value={serviceFilter}
-                  onChange={(e) => setServiceFilter(e.target.value)}
-                  className="w-full border-b border-gray-200 bg-transparent py-2 text-sm focus:border-primary outline-none"
-                >
-                  <option value="">Todos os serviços</option>
-                  {CATALOG_ITEMS.map(item => (
-                    <option key={item} value={item}>{item}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-gray-400">Data</label>
-                <input 
-                  type="date" 
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="w-full border-b border-gray-200 bg-transparent py-2 text-sm focus:border-primary outline-none"
-                />
-              </div>
-            </div>
-            {(serviceFilter || dateFilter) && (
-              <button 
-                onClick={() => { setServiceFilter(''); setDateFilter(''); }}
-                className="text-[10px] font-bold text-primary uppercase hover:underline"
-              >
-                Limpar Filtros
-              </button>
-            )}
+  return (
+    <div className="space-y-6">
+      {/* Welcome Banner */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-orange-50/80 backdrop-blur-md p-6 rounded-3xl shadow-sm border border-orange-200 text-ink relative overflow-hidden"
+      >
+        <div className="relative z-10 space-y-4 text-center">
+          <div className="space-y-2">
+            <h2 className="text-xl font-display font-bold leading-tight text-primary">
+              Bem-vindo(a) à Glória Fashion!
+            </h2>
+            <p className="text-sm font-medium text-ink/80">
+              Estamos muito felizes em ter você aqui! 💖
+            </p>
           </div>
+          
+          <p className="text-xs text-ink/70 leading-relaxed">
+            A Glória Fashion é um espaço feito para quem ama estilo, atitude e personalidade. Aqui você encontra joias, piercings, acessórios, presentes, moda e muito mais, além de serviços realizados com cuidado, higiene e profissionalismo.
+          </p>
 
-          {/* List */}
-          <div className="space-y-4">
-            {loading ? (
-              <div className="flex justify-center py-10">
-                <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-              </div>
-            ) : filteredAppointments.length > 0 ? (
-              filteredAppointments.map((app) => (
-                <motion.div 
-                  key={app.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="card p-4 border-peach/20 bg-white shadow-sm space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-ink">{app.service}</span>
-                        <StatusBadge status={app.status} />
-                      </div>
-                      <div className="text-[11px] text-gray-500 font-mono">
-                        {app.date.split('-').reverse().join('/')} às {app.time}
-                      </div>
-                    </div>
-                    <div className="text-primary">
-                      <Calendar size={20} />
-                    </div>
-                  </div>
-
-                  {app.status !== 'cancelado' && app.status !== 'reagendamento solicitado' && (
-                    <div className="flex justify-end pt-2 border-t border-gray-50">
-                      <button 
-                        onClick={() => setReschedulingAppointment(app)}
-                        className="flex items-center gap-2 text-[10px] font-bold text-primary uppercase hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors"
-                      >
-                        <RefreshCw size={12} />
-                        Solicitar Reagendamento
-                      </button>
-                    </div>
-                  )}
-
-                  {app.status === 'reagendamento solicitado' && (
-                    <div className="p-2 bg-blue-50 rounded-lg border border-blue-100">
-                      <p className="text-[10px] text-blue-700 font-medium">
-                        Solicitado para: {app.requested_date && format(parseISO(app.requested_date), "dd/MM")} às {app.requested_time}
-                      </p>
-                    </div>
-                  )}
-                </motion.div>
-              ))
-            ) : (
-              <div className="text-center py-20 space-y-2">
-                <p className="text-gray-400 italic text-sm">Nenhum agendamento encontrado.</p>
-                <button 
-                  onClick={() => setView('home')}
-                  className="text-primary font-bold text-xs uppercase hover:underline"
-                >
-                  Voltar ao início
-                </button>
-              </div>
-            )}
+          <div className="bg-primary/5 p-4 rounded-2xl border border-primary/10">
+            <p className="text-[11px] leading-relaxed font-medium text-ink/80">
+              📣 Nosso serviço de divulgação ajuda de pequenos a grandes negócios e profissionais a alcançarem mais pessoas por meio de nossos perfis nas redes sociais, que contam com uma comunidade grande e engajada.
+            </p>
           </div>
         </div>
+        <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-primary/5 rounded-full blur-2xl" />
+        <div className="absolute -left-10 -top-10 w-40 h-40 bg-peach/5 rounded-full blur-3xl" />
+      </motion.div>
 
-        {/* Modal de Reagendamento */}
-        <AnimatePresence>
-          {reschedulingAppointment && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-6"
-              >
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-display font-bold text-ink">Solicitar Reagendamento</h3>
-                  <button 
-                    onClick={() => setReschedulingAppointment(null)}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                  >
-                    <X size={20} className="text-gray-400" />
-                  </button>
-                </div>
+      <header className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-display font-bold text-ink">Catálogo</h1>
+          <ShoppingBag className="text-primary" size={24} />
+        </div>
 
-                <div className="space-y-4">
-                  <div className="p-4 bg-peach/5 rounded-2xl border border-peach/10">
-                    <p className="text-xs text-gray-custom mb-1">Serviço:</p>
-                    <p className="font-bold text-ink">{reschedulingAppointment.service}</p>
-                    <div className="flex gap-4 mt-2 text-xs text-gray-custom">
-                      <p className="flex items-center gap-1"><CalendarIcon size={12} /> {reschedulingAppointment.date && format(parseISO(reschedulingAppointment.date), "dd/MM/yyyy")}</p>
-                      <p className="flex items-center gap-1"><Clock size={12} /> {reschedulingAppointment.time}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-ink flex items-center gap-2">
-                        <CalendarIcon size={16} className="text-primary" /> Nova Data
-                      </label>
-                      <input 
-                        type="date" 
-                        value={newDate}
-                        onChange={(e) => setNewDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
-                        className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-primary/20 text-ink"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-ink flex items-center gap-2">
-                        <Clock size={16} className="text-primary" /> Novo Horário
-                      </label>
-                      <select 
-                        value={newTime}
-                        onChange={(e) => setNewTime(e.target.value)}
-                        className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-primary/20 text-ink"
-                      >
-                        <option value="">Selecione um horário</option>
-                        {['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].map(t => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button 
-                    onClick={() => setReschedulingAppointment(null)}
-                    className="flex-1 p-4 rounded-2xl font-bold text-gray-custom bg-gray-100 hover:bg-gray-200 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button 
-                    onClick={handleRescheduleRequest}
-                    disabled={!newDate || !newTime || isSubmitting}
-                    className="flex-1 p-4 rounded-2xl font-bold text-white bg-primary hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
-                  >
-                    {isSubmitting ? 'Enviando...' : 'Solicitar'}
-                  </button>
-                </div>
-              </motion.div>
+        {/* Highlighted Action Buttons */}
+        <div className="grid grid-cols-1 gap-3">
+          <button 
+            onClick={() => document.getElementById('nossos-produtos')?.scrollIntoView({ behavior: 'smooth' })}
+            className="flex items-center justify-between p-4 bg-white text-ink rounded-2xl shadow-md border border-peach/20 hover:bg-peach/5 transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                <ShoppingBag size={20} />
+              </div>
+              <span className="text-xs font-bold uppercase">Catálogo</span>
             </div>
+            <ChevronRight size={18} className="text-gray-300" />
+          </button>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Link 
+              to="/agendar" 
+              className="flex flex-col items-center justify-center p-4 bg-primary text-white rounded-2xl shadow-lg text-center gap-2 hover:scale-105 transition-transform"
+            >
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <Heart size={20} className="fill-white" />
+              </div>
+              <span className="text-[10px] font-bold uppercase leading-tight">Agende sua colocação<br/>(piercing e alargadores)</span>
+            </Link>
+            <a 
+              href="https://wa.me/5511950696045?text=Olá! Gostaria de fazer um orçamento."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center justify-center p-4 bg-ink text-white rounded-2xl shadow-lg text-center gap-2 hover:scale-105 transition-transform"
+            >
+              <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
+                <ShoppingBag size={20} />
+              </div>
+              <span className="text-[10px] font-bold uppercase leading-tight">Faça seu orçamento<br/>(divulgue seu produto_serviço)</span>
+            </a>
+          </div>
+        </div>
+      </header>
+
+      {/* Collapsed Product List */}
+      <div id="nossos-produtos" className="card overflow-hidden border-peach/30 bg-white/50 backdrop-blur-sm">
+        <button 
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full flex items-center justify-between p-5 text-left hover:bg-peach/5 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+              <ShoppingBag size={18} />
+            </div>
+            <div>
+              <h2 className="font-bold text-ink">Nossos Produtos</h2>
+              <p className="text-[10px] text-gray-custom uppercase tracking-wider">Toque para ver a lista completa</p>
+            </div>
+          </div>
+          {isExpanded ? <ChevronDown className="text-gray-custom" size={20} /> : <ChevronRight className="text-gray-custom" size={20} />}
+        </button>
+
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+            >
+              <div className="px-5 pb-5 divide-y divide-peach/10">
+                {CATALOG_ITEMS.map((item, index) => (
+                  <a 
+                    key={index}
+                    href="https://instagram.com/glorinha_presentesepiercings"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between py-3 group hover:px-2 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Package size={14} className="text-primary/60" />
+                      <span className="text-sm font-medium text-ink group-hover:text-primary transition-colors">{item}</span>
+                    </div>
+                    <ExternalLink size={12} className="text-gray-300 group-hover:text-primary transition-colors" />
+                  </a>
+                ))}
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
-      </>
-    );
-  }
+      </div>
 
-  return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-8">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-sm space-y-6"
-      >
-        <Link 
-          to="/agendar"
-          className="w-full bg-primary text-white p-8 rounded-[2rem] shadow-xl shadow-primary/20 flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform group"
-        >
-          <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
-            <CheckCircle size={40} />
+      {/* Promotions Section */}
+      <section className="pt-4 space-y-4">
+        <h2 className="font-display text-2xl font-bold text-ink">Promoções Ativas</h2>
+        <div className="grid grid-cols-1 gap-3">
+          <div className="bg-primary text-white p-4 rounded-2xl shadow-lg relative overflow-hidden flex flex-col justify-center min-h-[100px]">
+            <div className="relative z-10">
+              <h4 className="font-bold text-sm">Indique e ganhe 5%</h4>
+              <p className="text-[10px] opacity-80">Ganhe desconto quando seu indicado fizer check-in!</p>
+            </div>
+            <Heart className="absolute -right-4 -bottom-4 text-white/10" size={60} />
           </div>
-          <span className="font-display font-bold text-xl uppercase tracking-widest text-center">CONFIRMAR AGENDAMENTOS</span>
-        </Link>
-
-        <button 
-          onClick={() => setView('my-appointments')}
-          className="w-full bg-ink text-white p-8 rounded-[2rem] shadow-xl shadow-ink/20 flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform group"
-        >
-          <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition-colors">
-            <List size={40} />
-          </div>
-          <span className="font-display font-bold text-xl uppercase tracking-widest text-center">VER MEUS AGENDAMENTOS</span>
-        </button>
-      </motion.div>
+        </div>
+      </section>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: any = {
-    'aguardando aprovação': 'bg-yellow-50 text-yellow-600 border-yellow-100',
-    'confirmado': 'bg-green-50 text-green-600 border-green-100',
-    'cancelado': 'bg-red-50 text-red-600 border-red-100',
-    'reagendado': 'bg-blue-50 text-blue-600 border-blue-100',
-    'reagendamento solicitado': 'bg-purple-50 text-purple-600 border-purple-100'
-  };
-  
-  const labels: any = {
-    'aguardando aprovação': 'Pendente',
-    'confirmado': 'Confirmado',
-    'cancelado': 'Cancelado',
-    'reagendado': 'Reagendado',
-    'reagendamento solicitado': 'Reagendamento Solicitado'
-  };
-
-  return (
-    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase border ${styles[status] || 'bg-gray-50 text-gray-500 border-gray-100'}`}>
-      {labels[status] || status}
-    </span>
   );
 }

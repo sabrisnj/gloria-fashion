@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { Heart, Shield, Lock } from 'lucide-react';
+import { auth, signInAnonymously, GoogleAuthProvider, signInWithPopup } from '../firebase';
 import { Client } from '../types';
-import { Toast, ToastType } from './Toast';
 
 interface RegistrationProps {
   onRegister: (client: Client) => void;
@@ -16,7 +16,6 @@ export function Registration({ onRegister, onAdminLogin }: RegistrationProps) {
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,63 +24,84 @@ export function Registration({ onRegister, onAdminLogin }: RegistrationProps) {
     setLoading(true);
     setError(null);
     try {
-      const apiUrl = '/api/register';
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ name, whatsapp }),
-      });
-      
-      let data;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        if (response.status === 404) {
-          throw new Error('Erro 404: A rota da API não foi encontrada.');
+      let uid;
+      try {
+        // Tenta autenticar anonimamente para segurança máxima
+        const userCredential = await signInAnonymously(auth);
+        uid = userCredential.user.uid;
+      } catch (authErr: any) {
+        console.warn('Firebase Auth (Anonymous) is disabled or restricted. Falling back to local ID.', authErr);
+        // Fallback: usa um ID local persistente se o Firebase Auth estiver desativado no console
+        uid = localStorage.getItem('gloria_local_uid');
+        if (!uid) {
+          uid = `local_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
+          localStorage.setItem('gloria_local_uid', uid);
         }
-        throw new Error(`Erro no servidor (${response.status}).`);
       }
 
-      if (response.ok) {
-        onRegister(data);
-      } else {
-        const errorMsg = typeof data.error === 'string' ? data.error : (data.error?.message || 'Erro ao realizar cadastro');
-        throw new Error(errorMsg);
-      }
+      const clientData: Client = {
+        id: uid,
+        name,
+        whatsapp,
+        points: 0,
+        vouchers: []
+      };
+      onRegister(clientData);
     } catch (err: any) {
       console.error('Registration error:', err);
-      const errorMessage = err.message || 'Erro ao realizar cadastro. Tente novamente.';
-      setError(errorMessage);
+      setError('Erro ao entrar. Verifique sua conexão ou tente novamente mais tarde.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (adminPassword === 'Gloria2026') {
-      onAdminLogin();
+      if (loading) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Verifica se já está logado como admin
+        if (auth.currentUser?.email === 'sabrisnj@hotmail.com') {
+          onAdminLogin();
+          return;
+        }
+
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        
+        await signInWithPopup(auth, provider);
+        
+        if (auth.currentUser?.email === 'sabrisnj@hotmail.com') {
+          onAdminLogin();
+        } else {
+          setError('Acesso negado: E-mail não autorizado para administração.');
+          await auth.signOut();
+        }
+      } catch (err: any) {
+        if (err.code === 'auth/cancelled-popup-request') {
+          // Ignora pois uma nova requisição já está em curso
+          return;
+        }
+        if (err.code === 'auth/popup-closed-by-user') {
+          setError('A janela de login foi fechada. Tente novamente.');
+        } else {
+          console.error('Admin login error:', err);
+          setError('Erro ao realizar login administrativo com Google.');
+        }
+      } finally {
+        setLoading(false);
+      }
     } else {
-      setToast({ message: 'Senha administrativa incorreta.', type: 'error' });
+      alert('Senha administrativa incorreta.');
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-paper relative overflow-hidden">
-      <AnimatePresence>
-        {toast && (
-          <Toast 
-            message={toast.message} 
-            type={toast.type} 
-            onClose={() => setToast(null)} 
-          />
-        )}
-      </AnimatePresence>
       {/* Decorative elements */}
       <div className="absolute -top-20 -right-20 w-64 h-64 bg-peach/10 rounded-full blur-3xl" />
       <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-azure/10 rounded-full blur-3xl" />

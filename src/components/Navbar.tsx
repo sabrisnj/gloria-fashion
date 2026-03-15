@@ -9,16 +9,19 @@ interface NavbarProps {
 export function Navbar({ isAdmin }: NavbarProps) {
   const location = useLocation();
 
-  const navItems = [
-    { path: '/', icon: Home, label: 'Início' },
-    { path: '/agendar', icon: Calendar, label: 'Agendar' },
-    { path: '/pagamento', icon: CreditCard, label: 'Pagamento' },
-    { path: '/perfil', icon: User, label: 'Perfil' },
-  ];
-
-  if (isAdmin) {
-    navItems.push({ path: '/admin', icon: ShieldCheck, label: 'Admin' });
-  }
+  const navItems = isAdmin 
+    ? [
+        { path: '/admin', icon: ShieldCheck, label: 'Admin' },
+        { path: '/agendar', icon: Calendar, label: 'Agendar' },
+        { path: '/pagamento', icon: CreditCard, label: 'Pagamento' },
+        { path: '/perfil', icon: User, label: 'Perfil' },
+      ]
+    : [
+        { path: '/', icon: Home, label: 'Início' },
+        { path: '/agendar', icon: Calendar, label: 'Agendar' },
+        { path: '/pagamento', icon: CreditCard, label: 'Pagamento' },
+        { path: '/perfil', icon: User, label: 'Perfil' },
+      ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-2 z-50 flex justify-around items-center shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">

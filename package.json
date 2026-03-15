@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx api/server.ts",
+    "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
-    "@rollup/rollup-linux-x64-gnu": "^4.59.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vercel/node": "^5.6.15",
     "@vitejs/plugin-react": "^5.0.4",
@@ -21,6 +20,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "firebase": "^12.10.0",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",

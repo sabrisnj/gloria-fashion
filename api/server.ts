@@ -87,12 +87,32 @@ export async function getApp() {
     }
   });
 
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      time: new Date().toISOString(),
-      env: process.env.NODE_ENV || 'development'
-    });
+  app.get("/api/health", async (req, res) => {
+    try {
+      const hasApiKey = !!process.env.GEMINI_API_KEY;
+      const db = await getDb();
+      let dbStatus = "not configured";
+      try {
+        db.prepare("SELECT 1").get();
+        dbStatus = "connected";
+      } catch (e) {
+        dbStatus = "error";
+      }
+
+      res.json({
+        status: "ok",
+        server: "online",
+        database: dbStatus,
+        api_google: hasApiKey ? "configured" : "missing key",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        status: "error",
+        message: "O servidor está rodando, mas o banco de dados falhou.",
+        details: error.message
+      });
+    }
   });
 
   // Diagnostic route to check registered paths
@@ -261,20 +281,36 @@ export async function getApp() {
     }
   });
 
-  app.post(["/api/appointments", "/api/appointments/"], (req, res) => {
+  app.post(["/api/appointments", "/api/appointments/"], async (req, res) => {
     try {
-      const { client_id, service, date, time, referrer_phone } = req.body;
+      const db = await getDb();
+      const { client_id, service, date, time, referrer_phone, client_name, client_whatsapp } = req.body;
       
-      console.log(`[APPOINTMENT] New request from client_id: ${client_id}`, { service, date, time });
+      console.log(`[APPOINTMENT] New request`, { client_id, client_name, client_whatsapp, service, date, time });
 
-      if (!client_id || !service || !date || !time) {
+      let finalClientId = client_id;
+
+      // If admin is scheduling for a client by name/whatsapp
+      if (!finalClientId && client_name && client_whatsapp) {
+        const cleanWhatsapp = client_whatsapp.replace(/\D/g, '');
+        let client = db.prepare("SELECT id FROM clients WHERE whatsapp = ?").get(cleanWhatsapp);
+        
+        if (!client) {
+          const result = db.prepare("INSERT INTO clients (name, whatsapp) VALUES (?, ?)").run(client_name, cleanWhatsapp);
+          finalClientId = result.lastInsertRowid;
+        } else {
+          finalClientId = client.id;
+        }
+      }
+
+      if (!finalClientId || !service || !date || !time) {
         return res.status(400).json({ 
           error: "Campos obrigatórios ausentes",
-          details: "ID do cliente, serviço, data e hora são obrigatórios." 
+          details: "ID do cliente (ou nome/whatsapp), serviço, data e hora são obrigatórios." 
         });
       }
 
-      const numericClientId = Number(client_id);
+      const numericClientId = Number(finalClientId);
       if (isNaN(numericClientId)) {
         return res.status(400).json({ error: "ID do cliente inválido." });
       }
@@ -283,7 +319,7 @@ export async function getApp() {
       const client = db.prepare("SELECT id FROM clients WHERE id = ?").get(numericClientId);
       if (!client) {
         console.warn(`[APPOINTMENT] Client ${numericClientId} not found in database.`);
-        return res.status(404).json({ error: "Sua sessão expirou ou o cliente não foi encontrado. Por favor, saia e entre novamente." });
+        return res.status(404).json({ error: "Cliente não encontrado." });
       }
 
       // Double booking prevention

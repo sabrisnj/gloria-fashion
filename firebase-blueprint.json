@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Um agendamento realizado por um cliente.",
+      "type": "object",
+      "properties": {
+        "clientName": {
+          "type": "string",
+          "description": "Nome do cliente."
+        },
+        "whatsapp": {
+          "type": "string",
+          "description": "WhatsApp do cliente."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "confirmed", "cancelled"],
+          "description": "Status do agendamento."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data de criação do agendamento."
+        },
+        "appointmentDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data e hora solicitada para o agendamento."
+        }
+      },
+      "required": ["clientName", "whatsapp", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "appointments": {
+      "schema": "Appointment",
+      "description": "Coleção de agendamentos."
+    }
+  }
+}

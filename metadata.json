@@ -1,5 +1,7 @@
 {
-  "name": "Novo Glória Fashion",
-  "description": "App oficial da Glória Fashion: Agendamentos, Catálogo, Vouchers e Fidelidade.",
-  "requestFramePermissions": []
+  "name": "Sistema de Agendamentos Glória",
+  "description": "Sistema de agendamentos com interface para Clientes e Administração.",
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

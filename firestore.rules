@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "sabrisnj@hotmail.com" && request.auth.token.email_verified == true);
+    }
+
+    // Appointments collection
+    match /appointments/{appointmentId} {
+      // Clientes podem criar agendamentos
+      allow create: if true; 
+      
+      // Permite leitura se:
+      // 1. For Admin
+      // 2. For o dono via Auth (UID)
+      // 3. O cliente possuir o ID local (fallback para quando o console do Firebase está com Auth desativado)
+      allow read: if isAdmin() || 
+                   (isAuthenticated() && resource.data.client_id == request.auth.uid) ||
+                   (resource.data.client_id != null && resource.data.client_id != "");
+      
+      // Apenas o admin pode atualizar (confirmar) ou deletar
+      allow update, delete: if isAdmin();
+    }
+    
+    // User profiles
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId || isAdmin();
+    }
+  }
+}

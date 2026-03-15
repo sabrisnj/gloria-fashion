@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { 
   CreditCard, 
   Wallet, 
@@ -10,8 +10,9 @@ import {
   UserPlus,
   Info
 } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
 import { Client } from '../types';
-import { Toast, ToastType } from './Toast';
 
 interface PaymentProps {
   client: Client | null;
@@ -22,7 +23,6 @@ export function Payment({ client }: PaymentProps) {
   const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   const pixKey = "11967554525";
 
@@ -34,30 +34,23 @@ export function Payment({ client }: PaymentProps) {
 
   const handleCheckIn = async () => {
     if (!client || !referralCode) {
-      setToast({ message: 'Por favor, informe o código de indicação ou voucher.', type: 'error' });
+      alert('Por favor, informe o código de indicação ou voucher.');
       return;
     }
     setLoading(true);
     try {
-      const response = await fetch('/api/check-in', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: client.id,
-          referral_code: referralCode,
-          is_manual: true
-        }),
+      await addDoc(collection(db, 'visits'), {
+        client_id: client.id,
+        client_name: client.name,
+        client_whatsapp: client.whatsapp,
+        referral_code: referralCode,
+        status: 'pendente',
+        created_at: new Date().toISOString()
       });
-      if (response.ok) {
-        setSuccess(true);
-      } else {
-        const data = await response.json().catch(() => ({}));
-        const errorMsg = typeof data.error === 'string' ? data.error : (data.error?.message || 'Erro ao realizar check-in');
-        throw new Error(errorMsg);
-      }
+      setSuccess(true);
     } catch (error: any) {
-      const errorMessage = error.message || 'Erro ao realizar check-in.';
-      setToast({ message: errorMessage, type: 'error' });
+      console.error('Check-in error:', error);
+      alert('Erro ao realizar check-in.');
     } finally {
       setLoading(false);
     }
@@ -91,15 +84,6 @@ export function Payment({ client }: PaymentProps) {
 
   return (
     <div className="space-y-8 pb-10">
-      <AnimatePresence>
-        {toast && (
-          <Toast 
-            message={toast.message} 
-            type={toast.type} 
-            onClose={() => setToast(null)} 
-          />
-        )}
-      </AnimatePresence>
       <header className="space-y-2">
         <h1 className="text-3xl font-display font-bold text-ink uppercase tracking-tight">Pagamento</h1>
         <p className="text-xs text-gray-custom font-bold uppercase tracking-widest">Escolha sua forma de pagamento</p>

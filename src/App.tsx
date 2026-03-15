@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { auth } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { Layout } from './components/Layout';
 import { Registration } from './components/Registration';
 import { Catalog } from './components/Catalog';
@@ -53,11 +55,32 @@ export default function App() {
     }
   }, [isAdmin]);
 
-  const handleLogout = () => {
-    setClient(null);
-    setIsAdmin(false);
-    localStorage.removeItem('gloria_client');
-    localStorage.removeItem('gloria_admin');
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        if (user.email === 'sabrisnj@hotmail.com') {
+          setIsAdmin(true);
+        } else if (user.isAnonymous) {
+          // Se for anônimo, o cliente já deve estar no localStorage ou será setado no Registration
+        }
+      } else {
+        // Se deslogar do Firebase, limpa estados locais
+        setIsAdmin(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      setClient(null);
+      setIsAdmin(false);
+      localStorage.removeItem('gloria_client');
+      localStorage.removeItem('gloria_admin');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
   };
 
   const accessibilityStyles = {
@@ -78,7 +101,7 @@ export default function App() {
       <Router>
         <Layout client={client} isAdmin={isAdmin} onLogout={handleLogout} accessibility={accessibility} setAccessibility={setAccessibility}>
           <Routes>
-            <Route path="/" element={<Catalog client={client} />} />
+            <Route path="/" element={isAdmin ? <Navigate to="/admin" /> : <Catalog />} />
             <Route path="/agendar" element={<AppointmentForm client={client} />} />
             <Route path="/pagamento" element={<Payment client={client} />} />
             <Route path="/perfil" element={<Profile client={client} onLogout={handleLogout} accessibility={accessibility} setAccessibility={setAccessibility} />} />

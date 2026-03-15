@@ -5,7 +5,8 @@ import { Client, Appointment } from '../types';
 import { parseISO, format, addDays, startOfToday, isSunday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
-import { Toast, ToastType } from './Toast';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, addDoc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 
 const SERVICES = [
   "Colocação de Piercing (Orelha)",
@@ -28,88 +29,60 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
   const [service, setService] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [referrer, setReferrer] = useState('');
+  const [consent, setConsent] = useState(false);
+  const [notifications, setNotifications] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
-  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-  const [loadingTimes, setLoadingTimes] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   useEffect(() => {
-    if (date) {
-      setTime(''); // Reset time when date changes
-      setLoadingTimes(true);
-      fetch(`/api/available-times?date=${date}`)
-        .then(res => res.json())
-        .then(data => {
-          setAvailableTimes(data);
-          setLoadingTimes(false);
-        })
-        .catch(err => {
-          console.error('Error fetching available times:', err);
-          setLoadingTimes(false);
-        });
-    }
-  }, [date]);
+    if (!client) return;
 
-  useEffect(() => {
-    if (client) {
-      setLoadingAppointments(true);
-      fetch(`/api/appointments?client_id=${client.id}`)
-        .then(res => res.json())
-        .then(data => {
-          setAppointments(data);
-          setLoadingAppointments(false);
-        })
-        .catch(err => {
-          console.error('Error fetching appointments:', err);
-          setLoadingAppointments(false);
-        });
-    }
-  }, [client, success]);
+    const q = query(
+      collection(db, 'appointments'),
+      where('client_id', '==', client.id),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const clientAppointments = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Appointment[];
+      setAppointments(clientAppointments);
+      setLoadingAppointments(false);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'appointments');
+      setLoadingAppointments(false);
+    });
+
+    return () => unsubscribe();
+  }, [client]);
 
   const handleSubmit = async () => {
-    if (!client || !service || !date || !time) {
-      setToast({ message: 'Por favor, preencha todos os campos.', type: 'error' });
+    if (!client || !service || !date || !time || !consent) {
+      alert('Por favor, preencha todos os campos e aceite os termos.');
       return;
     }
     setLoading(true);
     try {
-      const response = await fetch('/api/appointments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: client.id,
-          service,
-          date,
-          time
-        }),
+      await addDoc(collection(db, 'appointments'), {
+        client_id: client.id,
+        client_name: client.name,
+        client_whatsapp: client.whatsapp,
+        service,
+        date,
+        time,
+        status: 'pendente',
+        referrer_phone: referrer || null,
+        createdAt: new Date().toISOString()
       });
       
-      let data;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        console.error('Non-JSON response received:', text);
-        if (response.status === 404) {
-          throw new Error('Erro 404: A rota da API não foi encontrada.');
-        }
-        throw new Error(`Erro no servidor (${response.status}).`);
-      }
-
-      if (response.ok && data.id) {
-        setSuccess(true);
-      } else {
-        const errorMsg = typeof data.error === 'string' ? data.error : (data.error?.message || 'Erro ao agendar');
-        throw new Error(errorMsg);
-      }
+      setSuccess(true);
     } catch (error: any) {
-      console.error('Appointment submission error:', error);
-      const errorMessage = error.message || 'Erro ao agendar. Tente novamente.';
-      setToast({ message: errorMessage, type: 'error' });
+      handleFirestoreError(error, OperationType.CREATE, 'appointments');
     } finally {
       setLoading(false);
     }
@@ -150,19 +123,10 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
 
   return (
     <div className="space-y-6">
-      <AnimatePresence>
-        {toast && (
-          <Toast 
-            message={toast.message} 
-            type={toast.type} 
-            onClose={() => setToast(null)} 
-          />
-        )}
-      </AnimatePresence>
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-display font-bold text-ink">Agendar</h1>
-          <p className="text-xs text-gray-custom font-bold uppercase tracking-widest">Passo {step} de 4</p>
+          <p className="text-xs text-gray-custom font-bold uppercase tracking-widest">Passo {step} de 3</p>
         </div>
         <button 
           onClick={() => document.getElementById('meus-agendamentos')?.scrollIntoView({ behavior: 'smooth' })}
@@ -173,7 +137,7 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
       </header>
 
       <div className="flex gap-2 mb-8">
-        {[1, 2, 3, 4].map(i => (
+        {[1, 2, 3].map(i => (
           <div 
             key={i} 
             className={`h-1 flex-grow rounded-full transition-all ${step >= i ? 'bg-primary' : 'bg-gray-200'}`}
@@ -204,40 +168,42 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
 
         {step === 2 && (
           <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-            <div className="space-y-4">
-              <h3 className="font-bold flex items-center gap-2 text-ink">
-                <Calendar size={18} className="text-primary" />
-                Escolha a data
-              </h3>
-              <div className="grid grid-cols-4 gap-2">
-                {Array.from({ length: 12 }).map((_, i) => {
-                  const d = addDays(startOfToday(), i + 1);
-                  if (isSunday(d)) return null;
-                  const dateStr = format(d, 'yyyy-MM-dd');
-                  return (
-                    <button
-                      key={dateStr}
-                      onClick={() => setDate(dateStr)}
-                      className={`flex flex-col items-center p-2 rounded-xl border-2 transition-all ${date === dateStr ? 'border-primary bg-peach/10 text-primary' : 'border-gray-100 bg-white text-ink'}`}
-                    >
-                      <span className="text-[10px] uppercase font-bold opacity-60">{format(d, 'EEE', { locale: ptBR })}</span>
-                      <span className="text-lg font-display font-bold">{format(d, 'dd')}</span>
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <h3 className="font-bold flex items-center gap-2 text-ink">
+                  <Calendar size={18} className="text-primary" />
+                  Quando você deseja vir?
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-gray-custom">Escolha a Data:</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-custom" size={18} />
+                      <input 
+                        type="date" 
+                        className="input-field pl-10 border-gray-200"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        min={format(new Date(), 'yyyy-MM-dd')}
+                        required
+                      />
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-gray-custom">Ou digite uma data específica:</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-custom" size={18} />
-                  <input 
-                    type="date" 
-                    className="input-field pl-10 border-gray-200"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    min={format(new Date(), 'yyyy-MM-dd')}
-                  />
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-gray-custom">Escolha o Horário:</label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-custom" size={18} />
+                      <input 
+                        type="time" 
+                        className="input-field pl-10 border-gray-200"
+                        value={time}
+                        onChange={(e) => setTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -246,7 +212,7 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
               <button onClick={prevStep} className="flex-grow py-3 rounded-xl border border-gray-200 font-medium">Voltar</button>
               <button 
                 onClick={nextStep} 
-                disabled={!date}
+                disabled={!date || !time}
                 className="flex-grow btn-primary disabled:opacity-50"
               >
                 Continuar
@@ -257,47 +223,6 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
 
         {step === 3 && (
           <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-            <div className="space-y-4">
-              <h3 className="font-bold flex items-center gap-2 text-ink">
-                <Clock size={18} className="text-primary" />
-                Escolha o horário
-              </h3>
-              {loadingTimes ? (
-                <div className="text-center py-8 text-gray-custom text-sm italic">Verificando disponibilidade...</div>
-              ) : availableTimes.length > 0 ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {availableTimes.map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setTime(t)}
-                      className={`p-2 rounded-lg border transition-all text-sm font-medium ${time === t ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white text-ink border-gray-100 hover:border-peach/30'}`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="card bg-red-50 text-red-600 text-center py-6 text-sm font-medium border-red-100">
-                  Não há horários disponíveis para esta data.
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <button onClick={prevStep} className="flex-grow py-3 rounded-xl border border-gray-200 font-medium">Voltar</button>
-              <button 
-                onClick={nextStep} 
-                disabled={!time}
-                className="flex-grow btn-primary disabled:opacity-50"
-              >
-                Continuar
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {step === 4 && (
-          <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-ink">Confirmação e Termos</h2>
               
@@ -317,13 +242,66 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
                   </div>
                 </div>
               </div>
+
+              <div className="space-y-3">
+                <label className="text-xs font-bold uppercase text-gray-custom flex items-center gap-2">
+                  <UserPlus size={14} /> Quem indicou? (Opcional)
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="Nome, WhatsApp ou Código (GLORIA-ID)" 
+                  className="input-field border-gray-200"
+                  value={referrer}
+                  onChange={(e) => setReferrer(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative flex items-center mt-1">
+                    <input 
+                      type="checkbox" 
+                      className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-300 checked:bg-primary checked:border-primary transition-all"
+                      checked={notifications}
+                      onChange={(e) => setNotifications(e.target.checked)}
+                    />
+                    <CheckCircle className="absolute h-5 w-5 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                  </div>
+                  <span className="text-xs text-gray-custom leading-tight">Aceito receber notificações sobre meu agendamento e promoções exclusivas via WhatsApp.</span>
+                </label>
+
+                <div className="card bg-gray-50 p-4 space-y-3 border-gray-100">
+                  <h4 className="text-[10px] font-bold uppercase text-gray-custom">Termo de Responsabilidade e Consentimento</h4>
+                  <div className="max-h-32 overflow-y-auto text-[10px] text-gray-custom space-y-2 pr-2 custom-scrollbar">
+                    <p>Ao prosseguir com este agendamento para aplicação de piercing ou alargamento, declaro estar ciente de que:</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>O procedimento envolve riscos inerentes, como inflamações ou reações alérgicas, se os cuidados pós-procedimento não forem seguidos.</li>
+                      <li>Comprometo-me a seguir todas as orientações de assepsia e cuidados fornecidas pela profissional.</li>
+                      <li>Declaro não possuir condições médicas que impeçam o procedimento (ex: problemas de coagulação, diabetes descontrolada).</li>
+                      <li>Autorizo a realização do procedimento escolhido.</li>
+                    </ul>
+                  </div>
+                  <label className="flex items-start gap-3 cursor-pointer pt-2">
+                    <div className="relative flex items-center mt-0.5">
+                      <input 
+                        type="checkbox" 
+                        className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-300 checked:bg-primary checked:border-primary transition-all"
+                        checked={consent}
+                        onChange={(e) => setConsent(e.target.checked)}
+                      />
+                      <CheckCircle className="absolute h-5 w-5 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                    </div>
+                    <span className="text-xs font-bold text-ink leading-tight">Li e concordo com o Termo de Responsabilidade e Consentimento.</span>
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-3 pt-4">
               <button onClick={prevStep} className="flex-grow py-3 rounded-xl border border-gray-200 font-medium text-gray-custom hover:text-ink">Voltar</button>
               <button 
                 onClick={handleSubmit} 
-                disabled={loading}
+                disabled={loading || !consent}
                 className="flex-grow btn-primary disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
               >
                 {loading ? 'Processando...' : 'Confirmar Agendamento'}

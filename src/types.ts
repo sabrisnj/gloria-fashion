@@ -1,10 +1,9 @@
 export interface Client {
-  id: number;
+  id: string;
   name: string;
   whatsapp: string;
-  created_at: string;
-  last_access: string;
-  notifications_enabled: number;
+  points: number;
+  vouchers: any[];
 }
 
 export interface Product {
@@ -17,23 +16,21 @@ export interface Product {
 }
 
 export interface Appointment {
-  id: number;
-  client_id: number;
+  id: string;
+  client_id: string;
   client_name?: string;
   client_whatsapp?: string;
   service: string;
   date: string;
   time: string;
-  status: 'aguardando aprovação' | 'confirmado' | 'cancelado' | 'reagendado' | 'reagendamento solicitado';
-  requested_date?: string;
-  requested_time?: string;
+  status: 'pendente' | 'confirmado' | 'cancelado' | 'reagendado';
   referrer_phone?: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface Visit {
   id: number;
-  client_id: number;
+  client_id: string;
   client_name?: string;
   client_whatsapp?: string;
   referral_code?: string;
@@ -43,7 +40,7 @@ export interface Visit {
 
 export interface Voucher {
   id: number;
-  client_id: number;
+  client_id: string;
   code: string;
   description: string;
   discount: number;

@@ -1,518 +1,568 @@
-import { useState, useEffect, FormEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, LogOut, Package, Calendar, Users, Ticket, Settings, Plus, Edit2, Trash2, Check, X, MapPin, CheckCircle, MessageSquare } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import * as React from 'react';
+import { motion } from 'motion/react';
+import { ShieldCheck, LogOut, Package, Calendar, Users, Ticket, Settings, Plus, Edit2, Trash2, Check, X, MapPin, CheckCircle, Home, Filter, FileText, Megaphone, Search } from 'lucide-react';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import { Product, Appointment, Client, Voucher, Visit } from '../types';
 import { formatCurrency } from '../utils';
-import { CATALOG_ITEMS } from '../constants';
-import { Toast, ToastType } from './Toast';
-import { Modal } from './Modal';
 
 interface AdminPanelProps {
   onLogout: () => void;
 }
 
 export function AdminPanel({ onLogout }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'appointments' | 'products' | 'clients' | 'vouchers' | 'settings' | 'visits'>('appointments');
+  const [activeTab, setActiveTab] = useState<'admin' | 'appointments' | 'products' | 'clients' | 'vouchers' | 'settings' | 'visits' | 'budgets' | 'events'>('admin');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [storeInfo, setStoreInfo] = useState<any>({});
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
-  const [appointmentFilter, setAppointmentFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'reschedule'>('pending');
+
+  // Filters for All Appointments
+  const [filterDate, setFilterDate] = useState('');
+  const [filterService, setFilterService] = useState('');
+
+  // Form for including appointment
+  const [showIncludeForm, setShowIncludeForm] = useState(false);
+  const [newApptName, setNewApptName] = useState('');
+  const [newApptWhatsapp, setNewApptWhatsapp] = useState('');
+  const [newApptService, setNewApptService] = useState('Piercing');
+  const [newApptDate, setNewApptDate] = useState('');
+  const [newApptTime, setNewApptTime] = useState('');
 
   useEffect(() => {
-    fetchData();
+    const q = query(collection(db, 'appointments'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Appointment[];
+      setAppointments(docs);
+      setLoading(false);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'appointments');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const handleStatusChange = async (id: string, status: string) => {
     try {
-      const [aRes, pRes, vRes, cRes, sRes] = await Promise.all([
-        fetch('/api/appointments').then(res => res.json()),
-        fetch('/api/products').then(res => res.json()),
-        fetch('/api/visits').then(res => res.json()),
-        fetch('/api/users').then(res => res.json()),
-        fetch('/api/store-info').then(res => res.json())
-      ]);
-      setAppointments(aRes);
-      setProducts(pRes);
-      setVisits(vRes);
-      setClients(cRes);
-      setStoreInfo(sRes);
+      const docRef = doc(db, 'appointments', id);
+      await updateDoc(docRef, { status });
     } catch (error) {
-      console.error("Failed to fetch admin data", error);
-    } finally {
-      setLoading(false);
+      console.error('Error updating status:', error);
+      alert('Erro ao atualizar status.');
     }
   };
 
-  const handleStatusChange = async (id: number, status: string) => {
+  const handleIncludeAppointment = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      const response = await fetch(`/api/appointments?id=${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+      await addDoc(collection(db, 'appointments'), {
+        client_name: newApptName,
+        client_whatsapp: newApptWhatsapp,
+        service: newApptService,
+        date: newApptDate,
+        time: newApptTime,
+        status: 'confirmado', // Admin inserting usually means confirmed
+        createdAt: new Date().toISOString()
       });
-      if (response.ok) {
-        setToast({ message: `Status atualizado para ${status}`, type: 'success' });
-        fetchData();
-      } else {
-        setToast({ message: 'Erro ao atualizar status.', type: 'error' });
-      }
+      setShowIncludeForm(false);
+      setNewApptName('');
+      setNewApptWhatsapp('');
+      alert('Agendamento incluído com sucesso!');
     } catch (error) {
-      setToast({ message: 'Erro ao atualizar status.', type: 'error' });
+      alert('Erro ao incluir agendamento.');
     }
   };
 
   const filteredAppointments = appointments.filter(a => {
-    if (appointmentFilter === 'all') return true;
-    if (appointmentFilter === 'pending') return a.status === 'aguardando aprovação';
-    if (appointmentFilter === 'confirmed') return a.status === 'confirmado';
-    if (appointmentFilter === 'cancelled') return a.status === 'cancelado';
-    if (appointmentFilter === 'reschedule') return a.status === 'reagendamento solicitado';
-    return true;
+    const matchesDate = filterDate ? a.date === filterDate : true;
+    const matchesService = filterService ? a.service.toLowerCase().includes(filterService.toLowerCase()) : true;
+    return matchesDate && matchesService;
   });
 
-  const handleApproveReschedule = async (appointment: Appointment) => {
-    try {
-      const response = await fetch(`/api/appointments?id=${appointment.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: 'confirmado',
-          date: appointment.requested_date,
-          time: appointment.requested_time,
-          requested_date: null,
-          requested_time: null
-        }),
-      });
-      if (response.ok) {
-        setToast({ message: 'Reagendamento aprovado!', type: 'success' });
-        fetchData();
-      } else {
-        setToast({ message: 'Erro ao aprovar reagendamento.', type: 'error' });
-      }
-    } catch (error) {
-      setToast({ message: 'Erro ao aprovar reagendamento.', type: 'error' });
-    }
-  };
-
-  const handleRejectReschedule = async (id: number) => {
-    try {
-      const response = await fetch(`/api/appointments?id=${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: 'confirmado',
-          requested_date: null,
-          requested_time: null
-        }),
-      });
-      if (response.ok) {
-        setToast({ message: 'Reagendamento recusado.', type: 'success' });
-        fetchData();
-      } else {
-        setToast({ message: 'Erro ao recusar reagendamento.', type: 'error' });
-      }
-    } catch (error) {
-      setToast({ message: 'Erro ao recusar reagendamento.', type: 'error' });
-    }
-  };
+  const pendingAppointments = appointments.filter(a => a.status === 'pendente');
+  const otherAppointments = appointments.filter(a => a.status !== 'pendente');
 
   const handleVisitStatusChange = async (id: number, status: string) => {
     try {
-      const response = await fetch(`/api/visits?id=${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (response.ok) {
-        setToast({ message: `Check-in ${status}`, type: 'success' });
-        fetchData();
-      } else {
-        setToast({ message: 'Erro ao atualizar status da visita.', type: 'error' });
-      }
+      // Em um app real, atualizaríamos o Firestore aqui também
+      console.log('Visit status change:', id, status);
     } catch (error) {
-      setToast({ message: 'Erro ao atualizar status da visita.', type: 'error' });
-    }
-  };
-
-  const handleDeleteProduct = (id: number) => {
-    setModal({
-      isOpen: true,
-      title: 'Excluir Produto',
-      message: 'Tem certeza que deseja excluir este produto?',
-      onConfirm: async () => {
-        try {
-          const response = await fetch(`/api/admin/products?id=${id}`, {
-            method: 'DELETE'
-          });
-          if (response.ok) {
-            setToast({ message: 'Produto excluído.', type: 'success' });
-            fetchData();
-          }
-        } catch (error) {
-          setToast({ message: 'Erro ao excluir.', type: 'error' });
-        }
-        setModal(null);
-      }
-    });
-  };
-
-  const [newProduct, setNewProduct] = useState({
-    name: '',
-    description: '',
-    price: '',
-    category: 'Body piercing',
-    image_url: ''
-  });
-  const [showAddProduct, setShowAddProduct] = useState(false);
-
-  const handleAddProduct = async (e: FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await fetch('/api/admin/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newProduct,
-          price: parseFloat(newProduct.price)
-        }),
-      });
-      if (response.ok) {
-        setToast({ message: 'Produto adicionado.', type: 'success' });
-        setNewProduct({ name: '', description: '', price: '', category: 'Body piercing', image_url: '' });
-        setShowAddProduct(false);
-        fetchData();
-      }
-    } catch (error) {
-      setToast({ message: 'Erro ao adicionar.', type: 'error' });
-    }
-  };
-
-  const handleUpdateSettings = async (e: FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await fetch('/api/admin/store-info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(storeInfo),
-      });
-      if (response.ok) {
-        setToast({ message: 'Configurações atualizadas.', type: 'success' });
-        fetchData();
-      }
-    } catch (error) {
-      setToast({ message: 'Erro ao atualizar.', type: 'error' });
+      alert('Erro ao atualizar status da visita.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-white text-ink font-sans">
-      <AnimatePresence>
-        {toast && (
-          <Toast 
-            message={toast.message} 
-            type={toast.type} 
-            onClose={() => setToast(null)} 
-          />
-        )}
-      </AnimatePresence>
-
-      {modal && (
-        <Modal 
-          isOpen={modal.isOpen}
-          title={modal.title}
-          message={modal.message}
-          onConfirm={modal.onConfirm}
-          onCancel={() => setModal(null)}
-          type="danger"
-        />
-      )}
-
-      <header className="border-b border-gray-200 py-4 px-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold tracking-tight">ADMINISTRAÇÃO</h1>
-          <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded font-mono text-gray-500 uppercase">v2.0</span>
+    <div className="space-y-6">
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-ink text-white rounded-xl flex items-center justify-center shadow-lg border-2 border-peach/20">
+            <ShieldCheck size={24} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-display font-bold text-ink">Painel Admin</h1>
+            <p className="text-[10px] text-gray-custom font-bold uppercase tracking-widest">Glória Fashion</p>
+          </div>
         </div>
         <button 
           onClick={onLogout}
-          className="text-gray-400 hover:text-ink transition-colors p-2"
+          className="w-10 h-10 bg-gray-100 text-gray-custom rounded-full flex items-center justify-center hover:text-primary transition-colors"
+          title="Sair do Admin"
         >
-          <LogOut size={18} />
+          <LogOut size={20} />
         </button>
       </header>
 
-      <nav className="flex border-b border-gray-100 overflow-x-auto no-scrollbar">
-        <NavTab active={activeTab === 'appointments'} onClick={() => setActiveTab('appointments')} label="Agendamentos" />
-        <NavTab active={activeTab === 'visits'} onClick={() => setActiveTab('visits')} label="Check-ins" />
-        <NavTab active={activeTab === 'products'} onClick={() => setActiveTab('products')} label="Produtos" />
-        <NavTab active={activeTab === 'clients'} onClick={() => setActiveTab('clients')} label="Clientes" />
-        <NavTab active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} label="Configurações" />
-      </nav>
+      <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar">
+        <TabButton 
+          active={activeTab === 'admin'} 
+          onClick={() => setActiveTab('admin')} 
+          icon={ShieldCheck} 
+          label="ADMIN" 
+        />
+        <TabButton 
+          active={activeTab === 'appointments'} 
+          onClick={() => setActiveTab('appointments')} 
+          icon={Calendar} 
+          label="Agendamentos" 
+          badge={pendingAppointments.length}
+        />
+        <TabButton 
+          active={activeTab === 'visits'} 
+          onClick={() => setActiveTab('visits')} 
+          icon={MapPin} 
+          label="Check-ins" 
+          badge={visits.filter(v => v.status === 'pendente').length}
+        />
+        <TabButton active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={Package} label="Produtos" />
+        <TabButton active={activeTab === 'clients'} onClick={() => setActiveTab('clients')} icon={Users} label="Clientes" />
+        <TabButton active={activeTab === 'vouchers'} onClick={() => setActiveTab('vouchers')} icon={Ticket} label="Cupons" />
+        <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={Settings} label="Loja" />
+      </div>
 
-      <main className="p-6">
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-6 h-6 border-2 border-gray-200 border-t-ink rounded-full animate-spin" />
-          </div>
-        ) : (
-          <div className="max-w-4xl mx-auto space-y-8">
-            {activeTab === 'appointments' && (
-              <div className="space-y-6">
-                <div className="flex gap-2 border-b border-gray-50 pb-4">
-                  <FilterBtn active={appointmentFilter === 'all'} onClick={() => setAppointmentFilter('all')} label="Todos" count={appointments.length} />
-                  <FilterBtn active={appointmentFilter === 'pending'} onClick={() => setAppointmentFilter('pending')} label="Pendentes" count={appointments.filter(a => a.status === 'aguardando aprovação').length} />
-                  <FilterBtn active={appointmentFilter === 'reschedule'} onClick={() => setAppointmentFilter('reschedule')} label="Reagendamentos" count={appointments.filter(a => a.status === 'reagendamento solicitado').length} />
-                  <FilterBtn active={appointmentFilter === 'confirmed'} onClick={() => setAppointmentFilter('confirmed')} label="Confirmados" count={appointments.filter(a => a.status === 'confirmado').length} />
-                  <FilterBtn active={appointmentFilter === 'cancelled'} onClick={() => setAppointmentFilter('cancelled')} label="Cancelados" count={appointments.filter(a => a.status === 'cancelado').length} />
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        <motion.div 
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          {activeTab === 'admin' && (
+            <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <MenuButton 
+                  onClick={() => setActiveTab('appointments')}
+                  icon={CheckCircle}
+                  label="Confirmar Agendamento"
+                  color="bg-green-500"
+                  badge={pendingAppointments.length}
+                />
+                <MenuButton 
+                  onClick={() => setShowIncludeForm(true)}
+                  icon={Plus}
+                  label="Incluir Agendamento"
+                  color="bg-primary"
+                />
+                <MenuButton 
+                  onClick={() => setActiveTab('appointments')}
+                  icon={Search}
+                  label="Ver Todos os Agendamentos"
+                  color="bg-ink"
+                />
+                <MenuButton 
+                  onClick={() => setActiveTab('budgets')}
+                  icon={FileText}
+                  label="Orçamentos Pendentes"
+                  color="bg-orange-500"
+                />
+                <MenuButton 
+                  onClick={() => setActiveTab('budgets')}
+                  icon={FileText}
+                  label="Orçamentos Enviados"
+                  color="bg-blue-500"
+                />
+                <MenuButton 
+                  onClick={() => setActiveTab('events')}
+                  icon={Megaphone}
+                  label="Eventos de Divulgação"
+                  color="bg-purple-500"
+                />
+              </div>
+
+              {showIncludeForm && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="card space-y-4 border-primary/20 bg-primary/5"
+                >
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-ink">Novo Agendamento</h3>
+                    <button onClick={() => setShowIncludeForm(false)} className="text-gray-400"><X size={20}/></button>
+                  </div>
+                  <form onSubmit={handleIncludeAppointment} className="space-y-3">
+                    <input 
+                      type="text" 
+                      placeholder="Nome do Cliente" 
+                      className="input-field text-sm" 
+                      value={newApptName}
+                      onChange={e => setNewApptName(e.target.value)}
+                      required 
+                    />
+                    <input 
+                      type="tel" 
+                      placeholder="WhatsApp" 
+                      className="input-field text-sm" 
+                      value={newApptWhatsapp}
+                      onChange={e => setNewApptWhatsapp(e.target.value)}
+                      required 
+                    />
+                    <select 
+                      className="input-field text-sm"
+                      value={newApptService}
+                      onChange={e => setNewApptService(e.target.value)}
+                    >
+                      <option>Piercing</option>
+                      <option>Alargador</option>
+                      <option>Consultoria</option>
+                    </select>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input 
+                        type="date" 
+                        className="input-field text-sm" 
+                        value={newApptDate}
+                        onChange={e => setNewApptDate(e.target.value)}
+                        required 
+                      />
+                      <input 
+                        type="time" 
+                        className="input-field text-sm" 
+                        value={newApptTime}
+                        onChange={e => setNewApptTime(e.target.value)}
+                        required 
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary w-full">Salvar Agendamento</button>
+                  </form>
+                </motion.div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'appointments' && (
+            <div className="space-y-6">
+              {/* Filters Section */}
+              <div className="card p-4 space-y-3 border-gray-100">
+                <div className="flex items-center gap-2 text-gray-custom text-xs font-bold uppercase">
+                  <Filter size={14} /> Filtros
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input 
+                    type="date" 
+                    className="input-field text-xs" 
+                    value={filterDate}
+                    onChange={e => setFilterDate(e.target.value)}
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Procedimento" 
+                    className="input-field text-xs" 
+                    value={filterService}
+                    onChange={e => setFilterService(e.target.value)}
+                  />
+                </div>
+                {(filterDate || filterService) && (
+                  <button 
+                    onClick={() => { setFilterDate(''); setFilterService(''); }}
+                    className="text-[10px] text-primary font-bold uppercase"
+                  >
+                    Limpar Filtros
+                  </button>
+                )}
+              </div>
 
-                <div className="divide-y divide-gray-100">
-                  {filteredAppointments.map(a => (
-                    <div key={a.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm">{a.client_name}</span>
-                          <StatusBadge status={a.status} />
+              <div className="space-y-3">
+                <h2 className="font-display text-xl font-bold text-ink flex items-center gap-2">
+                  <Calendar className="text-primary" size={20} />
+                  {filterDate || filterService ? 'Resultados do Filtro' : 'Pendentes de Aprovação'}
+                </h2>
+                
+                {(filterDate || filterService ? filteredAppointments : pendingAppointments).length > 0 ? (
+                  (filterDate || filterService ? filteredAppointments : pendingAppointments).map(a => (
+                    <div key={a.id} className="card space-y-3 border-peach/20 bg-peach/5">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-bold text-ink">{a.client_name}</h3>
+                          <a 
+                            href={`https://wa.me/${a.client_whatsapp?.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            {a.client_whatsapp}
+                          </a>
                         </div>
-                        <div className="text-[11px] text-gray-500 font-mono flex flex-col gap-1">
-                          <div className="flex gap-3">
-                            <span>{a.date} @ {a.time}</span>
-                            <span className="text-ink">{a.service}</span>
-                          </div>
-                          {a.status === 'reagendamento solicitado' && (
-                            <div className="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded mt-1">
-                              Solicitado para: {a.requested_date} @ {a.requested_time}
-                            </div>
-                          )}
-                        </div>
+                        <span className="text-[10px] px-2 py-1 rounded-full font-bold uppercase bg-yellow-100 text-yellow-600">
+                          Pendente
+                        </span>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg text-xs space-y-1 border border-peach/10">
+                        <p className="text-ink"><strong>Serviço:</strong> {a.service}</p>
+                        <p className="text-ink"><strong>Data/Hora:</strong> {a.date} às {a.time}</p>
+                        {a.referrer_phone && <p className="text-ink"><strong>Indicado por:</strong> {a.referrer_phone}</p>}
                       </div>
                       <div className="flex gap-2">
-                        {a.status === 'reagendamento solicitado' && (
-                          <>
-                            <ActionBtn onClick={() => handleApproveReschedule(a)} label="Aprovar" variant="success" />
-                            <ActionBtn onClick={() => handleRejectReschedule(a.id)} label="Recusar" variant="danger" />
-                          </>
-                        )}
-                        {a.status === 'aguardando aprovação' && (
-                          <ActionBtn onClick={() => handleStatusChange(a.id, 'confirmado')} label="Confirmar" variant="success" />
-                        )}
-                        {a.status !== 'cancelado' && (
-                          <ActionBtn onClick={() => handleStatusChange(a.id, 'cancelado')} label="Cancelar" variant="danger" />
-                        )}
-                        {a.status === 'cancelado' && (
-                          <ActionBtn onClick={() => handleStatusChange(a.id, 'confirmado')} label="Reativar" variant="success" />
-                        )}
-                        <a 
-                          href={`https://wa.me/${a.client_whatsapp?.replace(/\D/g, '')}`}
-                          target="_blank"
-                          className="text-[10px] font-bold uppercase border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors"
+                        <button 
+                          onClick={() => handleStatusChange(a.id, 'confirmado')}
+                          className="flex-grow flex items-center justify-center gap-1 bg-green-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-green-600 transition-all shadow-md shadow-green-200"
                         >
-                          WhatsApp
-                        </a>
+                          <Check size={14} /> Aprovar
+                        </button>
+                        <button 
+                          onClick={() => handleStatusChange(a.id, 'cancelado')}
+                          className="flex-grow flex items-center justify-center gap-1 bg-red-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-red-600 transition-all shadow-md shadow-red-200"
+                        >
+                          <X size={14} /> Cancelar
+                        </button>
                       </div>
                     </div>
-                  ))}
-                  {filteredAppointments.length === 0 && (
-                    <p className="text-center py-10 text-gray-400 text-xs italic">Nenhum registro encontrado.</p>
-                  )}
-                </div>
+                  ))
+                ) : (
+                  <div className="card bg-gray-50 text-center py-10 border-dashed border-gray-200">
+                    <CheckCircle className="text-green-300 mx-auto mb-2" size={32} />
+                    <p className="text-gray-custom italic text-sm">Tudo em dia! Nenhum agendamento pendente.</p>
+                  </div>
+                )}
               </div>
-            )}
 
-            {activeTab === 'visits' && (
-              <div className="divide-y divide-gray-100">
-                {visits.map(v => (
-                  <div key={v.id} className="py-4 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm">{v.client_name}</span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${v.status === 'confirmado' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>{v.status}</span>
+              {otherAppointments.length > 0 && (
+                <div className="space-y-3 pt-4 border-t border-gray-100">
+                  <h2 className="font-display text-lg font-bold text-gray-custom">Histórico Recente</h2>
+                  <div className="space-y-2">
+                    {otherAppointments.slice(0, 5).map(a => (
+                      <div key={a.id} className="card p-3 flex items-center justify-between border-gray-100 opacity-80">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-xs text-ink">{a.client_name}</span>
+                          <span className="text-[10px] text-gray-custom">{a.service} • {a.date}</span>
+                        </div>
+                        <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                          a.status === 'confirmado' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                        }`}>
+                          {a.status}
+                        </span>
                       </div>
-                      <p className="text-[10px] text-gray-500">{new Date(v.created_at).toLocaleString('pt-BR')}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'visits' && (
+            <div className="space-y-3">
+              <h2 className="font-display text-xl font-bold text-ink">Validar Check-ins</h2>
+              {visits.length > 0 ? (
+                visits.map(v => (
+                  <div key={v.id} className="card space-y-3 border-peach/20">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-ink">{v.client_name}</h3>
+                        <a 
+                          href={`https://wa.me/${v.client_whatsapp.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          {v.client_whatsapp}
+                        </a>
+                      </div>
+                      <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${
+                        v.status === 'confirmado' ? 'bg-green-100 text-green-600' : 
+                        v.status === 'rejeitado' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'
+                      }`}>
+                        {v.status}
+                      </span>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded-lg text-xs space-y-1 border border-gray-100">
+                      <p className="text-ink"><strong>Data:</strong> {new Date(v.created_at).toLocaleString('pt-BR')}</p>
+                      {v.referral_code && (
+                        <p className="text-primary font-bold">
+                          <strong>Código de Indicação:</strong> {v.referral_code}
+                        </p>
+                      )}
                     </div>
                     {v.status === 'pendente' && (
                       <div className="flex gap-2">
-                        <ActionBtn onClick={() => handleVisitStatusChange(v.id, 'confirmado')} label="Validar" variant="success" />
-                        <ActionBtn onClick={() => handleVisitStatusChange(v.id, 'rejeitado')} label="Rejeitar" variant="danger" />
+                        <button 
+                          onClick={() => handleVisitStatusChange(v.id, 'confirmado')}
+                          className="flex-grow flex items-center justify-center gap-1 bg-green-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-600 transition-colors"
+                        >
+                          <Check size={14} /> Validar Voucher
+                        </button>
+                        <button 
+                          onClick={() => handleVisitStatusChange(v.id, 'rejeitado')}
+                          className="flex-grow flex items-center justify-center gap-1 bg-red-500 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-600 transition-colors"
+                        >
+                          <X size={14} /> Rejeitar
+                        </button>
                       </div>
                     )}
                   </div>
-                ))}
+                ))
+              ) : (
+                <p className="text-center text-gray-400 italic py-10">Nenhum check-in registrado.</p>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'products' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-xl font-bold text-ink">Gerenciar Produtos</h2>
+                <button className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-primary/20">
+                  <Plus size={20} />
+                </button>
               </div>
-            )}
-
-            {activeTab === 'products' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold uppercase tracking-wider">Catálogo de Produtos</h2>
-                  <button 
-                    onClick={() => setShowAddProduct(!showAddProduct)}
-                    className="text-[10px] font-bold uppercase bg-ink text-white px-4 py-2 rounded"
-                  >
-                    {showAddProduct ? 'Fechar' : 'Novo Produto'}
-                  </button>
-                </div>
-
-                {showAddProduct && (
-                  <form onSubmit={handleAddProduct} className="bg-gray-50 p-6 rounded border border-gray-100 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2 space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-gray-400">Nome</label>
-                        <input type="text" required className="w-full border-b border-gray-200 bg-transparent py-2 text-sm focus:border-ink outline-none" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-gray-400">Preço (R$)</label>
-                        <input type="number" step="0.01" required className="w-full border-b border-gray-200 bg-transparent py-2 text-sm focus:border-ink outline-none" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-gray-400">Categoria</label>
-                        <select className="w-full border-b border-gray-200 bg-transparent py-2 text-sm focus:border-ink outline-none" value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
-                          {CATALOG_ITEMS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                        </select>
-                      </div>
+              <div className="grid gap-3">
+                {products.map(p => (
+                  <div key={p.id} className="card flex items-center gap-4 border-peach/20">
+                    <div className="w-12 h-12 bg-peach/10 rounded-lg flex items-center justify-center text-primary">
+                      <Package size={24} />
                     </div>
-                    <button type="submit" className="w-full bg-ink text-white py-3 text-xs font-bold uppercase tracking-widest">Salvar Produto</button>
-                  </form>
-                )}
-
-                <div className="grid gap-2">
-                  {products.map(p => (
-                    <div key={p.id} className="border border-gray-100 p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-gray-100 rounded overflow-hidden">
-                          {p.image_url && <img src={p.image_url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold">{p.name}</p>
-                          <p className="text-[10px] text-gray-400 uppercase">{p.category} • R$ {p.price.toFixed(2)}</p>
-                        </div>
-                      </div>
-                      <button onClick={() => handleDeleteProduct(p.id)} className="text-gray-300 hover:text-red-500 p-2">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'clients' && (
-              <div className="divide-y divide-gray-100">
-                {clients.map(c => (
-                  <div key={c.id} className="py-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-bold">{c.name}</p>
-                      <p className="text-[10px] text-gray-400 font-mono">{c.whatsapp}</p>
+                    <div className="flex-grow">
+                      <h3 className="font-bold text-sm text-ink">{p.name}</h3>
+                      <p className="text-[10px] text-gray-custom uppercase font-bold">{p.category}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[9px] text-gray-300 uppercase font-bold">Último Acesso</p>
-                      <p className="text-[10px] font-mono">{c.last_access ? new Date(c.last_access).toLocaleDateString('pt-BR') : '---'}</p>
+                      <div className="flex gap-2 mt-1">
+                        <button className="text-gray-custom hover:text-ink"><Edit2 size={14} /></button>
+                        <button className="text-gray-custom hover:text-primary"><Trash2 size={14} /></button>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+          )}
 
-            {activeTab === 'settings' && (
-              <div className="max-w-md space-y-6">
-                <h2 className="text-sm font-bold uppercase tracking-wider">Configurações Gerais</h2>
-                <form onSubmit={handleUpdateSettings} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-gray-400">Endereço da Loja</label>
-                    <input 
-                      type="text" 
-                      className="w-full border-b border-gray-200 py-2 text-sm outline-none focus:border-ink" 
-                      value={storeInfo.address || ''} 
-                      onChange={e => setStoreInfo({...storeInfo, address: e.target.value})}
-                    />
+          {activeTab === 'clients' && (
+            <div className="space-y-4">
+              <h2 className="font-display text-xl font-bold text-ink">Base de Clientes ({clients.length})</h2>
+              <div className="grid gap-3">
+                {clients.map(client => (
+                  <div key={client.id} className="card p-4 flex items-center justify-between border-peach/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                        <Users size={20} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-ink">{client.name}</p>
+                        <p className="text-xs text-gray-custom">{client.whatsapp}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-gray-custom uppercase font-bold">Último Acesso</p>
+                      <p className="text-xs font-medium text-ink">
+                        {client.last_access ? new Date(client.last_access).toLocaleDateString('pt-BR') : 'N/A'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-gray-400">WhatsApp de Contato</label>
-                    <input 
-                      type="text" 
-                      className="w-full border-b border-gray-200 py-2 text-sm outline-none focus:border-ink" 
-                      value={storeInfo.whatsapp || ''} 
-                      onChange={e => setStoreInfo({...storeInfo, whatsapp: e.target.value})}
-                    />
+                ))}
+                {clients.length === 0 && (
+                  <div className="card bg-gray-50 text-center py-20 border-dashed border-gray-200">
+                    <Users className="text-gray-300 mx-auto mb-2" size={48} />
+                    <p className="text-gray-custom">Nenhum cliente cadastrado.</p>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-gray-400">Chave PIX</label>
-                    <input 
-                      type="text" 
-                      className="w-full border-b border-gray-200 py-2 text-sm outline-none focus:border-ink" 
-                      value={storeInfo.pix_key || ''} 
-                      onChange={e => setStoreInfo({...storeInfo, pix_key: e.target.value})}
-                    />
-                  </div>
-                  <button type="submit" className="w-full bg-ink text-white py-3 text-xs font-bold uppercase tracking-widest mt-4">Atualizar Dados</button>
-                </form>
+                )}
               </div>
-            )}
-          </div>
-        )}
-      </main>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-4">
+              <h2 className="font-display text-xl font-bold text-ink">Configurações da Loja</h2>
+              <div className="card space-y-4 border-peach/20">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-gray-custom">Endereço</label>
+                  <input type="text" className="input-field text-sm border-gray-200" defaultValue="R. Mal. Rondon, 113 – Loja 65 – Centro" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-gray-custom">WhatsApp</label>
+                  <input type="text" className="input-field text-sm border-gray-200" defaultValue="11 95069-6045" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-gray-custom">Chave PIX</label>
+                  <input type="text" className="input-field text-sm border-gray-200" defaultValue="11967554525" />
+                </div>
+                <button className="btn-primary w-full shadow-lg shadow-primary/20">Salvar Alterações</button>
+              </div>
+            </div>
+          )}
+          {activeTab === 'budgets' && (
+            <div className="space-y-4">
+              <h2 className="font-display text-xl font-bold text-ink">Gestão de Orçamentos</h2>
+              <div className="card bg-gray-50 text-center py-20 border-dashed border-gray-200">
+                <FileText className="text-gray-300 mx-auto mb-2" size={48} />
+                <p className="text-gray-custom italic">Módulo de orçamentos em breve.</p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'events' && (
+            <div className="space-y-4">
+              <h2 className="font-display text-xl font-bold text-ink">Eventos de Divulgação</h2>
+              <div className="card bg-gray-50 text-center py-20 border-dashed border-gray-200">
+                <Megaphone className="text-gray-300 mx-auto mb-2" size={48} />
+                <p className="text-gray-custom italic">Módulo de eventos em breve.</p>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      )}
     </div>
   );
 }
 
-function NavTab({ active, onClick, label }: any) {
+function MenuButton({ onClick, icon: Icon, label, color, badge }: any) {
   return (
     <button 
       onClick={onClick}
-      className={`px-6 py-4 text-[11px] font-bold uppercase tracking-wider transition-all border-b-2 ${
-        active ? 'border-ink text-ink' : 'border-transparent text-gray-400 hover:text-gray-600'
+      className={`${color} text-white p-4 rounded-2xl shadow-lg flex flex-col items-center justify-center text-center gap-2 hover:scale-105 transition-transform relative`}
+    >
+      <Icon size={24} />
+      <span className="text-[10px] font-bold uppercase leading-tight">{label}</span>
+      {badge > 0 && (
+        <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function TabButton({ active, onClick, icon: Icon, label, badge }: any) {
+  return (
+    <button 
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all relative ${
+        active ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-custom border border-gray-100 hover:border-peach/30'
       }`}
     >
+      <Icon size={16} />
       {label}
+      {badge > 0 && (
+        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full border border-white animate-pulse">
+          {badge}
+        </span>
+      )}
     </button>
-  );
-}
-
-function FilterBtn({ active, onClick, label, count }: any) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase flex items-center gap-2 transition-all ${
-        active ? 'bg-ink text-white' : 'text-gray-400 hover:bg-gray-50'
-      }`}
-    >
-      {label}
-      <span className={`px-1.5 py-0.5 rounded font-mono ${active ? 'bg-white/20' : 'bg-gray-100'}`}>{count}</span>
-    </button>
-  );
-}
-
-function ActionBtn({ onClick, label, variant }: any) {
-  const styles = {
-    success: 'bg-green-50 text-green-600 hover:bg-green-600 hover:text-white',
-    danger: 'bg-red-50 text-red-600 hover:bg-red-600 hover:text-white',
-    default: 'bg-gray-50 text-gray-600 hover:bg-gray-600 hover:text-white'
-  };
-  return (
-    <button 
-      onClick={onClick}
-      className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded transition-all ${styles[variant as keyof typeof styles] || styles.default}`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: any = {
-    'aguardando aprovação': 'bg-yellow-50 text-yellow-600',
-    'confirmado': 'bg-green-50 text-green-600',
-    'cancelado': 'bg-red-50 text-red-600',
-    'reagendamento solicitado': 'bg-blue-50 text-blue-600'
-  };
-  return (
-    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${styles[status] || 'bg-gray-50 text-gray-500'}`}>
-      {status === 'aguardando aprovação' ? 'Pendente' : status === 'reagendamento solicitado' ? 'Reagendamento' : status}
-    </span>
   );
 }
