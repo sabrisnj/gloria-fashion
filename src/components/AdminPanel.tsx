@@ -21,7 +21,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
-  const [appointmentFilter, setAppointmentFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled'>('pending');
+  const [appointmentFilter, setAppointmentFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'reschedule'>('pending');
 
   useEffect(() => {
     fetchData();
@@ -72,8 +72,55 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
     if (appointmentFilter === 'pending') return a.status === 'aguardando aprovação';
     if (appointmentFilter === 'confirmed') return a.status === 'confirmado';
     if (appointmentFilter === 'cancelled') return a.status === 'cancelado';
+    if (appointmentFilter === 'reschedule') return a.status === 'reagendamento solicitado';
     return true;
   });
+
+  const handleApproveReschedule = async (appointment: Appointment) => {
+    try {
+      const response = await fetch(`/api/appointments?id=${appointment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'confirmado',
+          date: appointment.requested_date,
+          time: appointment.requested_time,
+          requested_date: null,
+          requested_time: null
+        }),
+      });
+      if (response.ok) {
+        setToast({ message: 'Reagendamento aprovado!', type: 'success' });
+        fetchData();
+      } else {
+        setToast({ message: 'Erro ao aprovar reagendamento.', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Erro ao aprovar reagendamento.', type: 'error' });
+    }
+  };
+
+  const handleRejectReschedule = async (id: number) => {
+    try {
+      const response = await fetch(`/api/appointments?id=${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'confirmado',
+          requested_date: null,
+          requested_time: null
+        }),
+      });
+      if (response.ok) {
+        setToast({ message: 'Reagendamento recusado.', type: 'success' });
+        fetchData();
+      } else {
+        setToast({ message: 'Erro ao recusar reagendamento.', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Erro ao recusar reagendamento.', type: 'error' });
+    }
+  };
 
   const handleVisitStatusChange = async (id: number, status: string) => {
     try {
@@ -219,6 +266,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                 <div className="flex gap-2 border-b border-gray-50 pb-4">
                   <FilterBtn active={appointmentFilter === 'all'} onClick={() => setAppointmentFilter('all')} label="Todos" count={appointments.length} />
                   <FilterBtn active={appointmentFilter === 'pending'} onClick={() => setAppointmentFilter('pending')} label="Pendentes" count={appointments.filter(a => a.status === 'aguardando aprovação').length} />
+                  <FilterBtn active={appointmentFilter === 'reschedule'} onClick={() => setAppointmentFilter('reschedule')} label="Reagendamentos" count={appointments.filter(a => a.status === 'reagendamento solicitado').length} />
                   <FilterBtn active={appointmentFilter === 'confirmed'} onClick={() => setAppointmentFilter('confirmed')} label="Confirmados" count={appointments.filter(a => a.status === 'confirmado').length} />
                   <FilterBtn active={appointmentFilter === 'cancelled'} onClick={() => setAppointmentFilter('cancelled')} label="Cancelados" count={appointments.filter(a => a.status === 'cancelado').length} />
                 </div>
@@ -231,12 +279,25 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                           <span className="font-bold text-sm">{a.client_name}</span>
                           <StatusBadge status={a.status} />
                         </div>
-                        <div className="text-[11px] text-gray-500 font-mono flex gap-3">
-                          <span>{a.date} @ {a.time}</span>
-                          <span className="text-ink">{a.service}</span>
+                        <div className="text-[11px] text-gray-500 font-mono flex flex-col gap-1">
+                          <div className="flex gap-3">
+                            <span>{a.date} @ {a.time}</span>
+                            <span className="text-ink">{a.service}</span>
+                          </div>
+                          {a.status === 'reagendamento solicitado' && (
+                            <div className="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded mt-1">
+                              Solicitado para: {a.requested_date} @ {a.requested_time}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-2">
+                        {a.status === 'reagendamento solicitado' && (
+                          <>
+                            <ActionBtn onClick={() => handleApproveReschedule(a)} label="Aprovar" variant="success" />
+                            <ActionBtn onClick={() => handleRejectReschedule(a.id)} label="Recusar" variant="danger" />
+                          </>
+                        )}
                         {a.status === 'aguardando aprovação' && (
                           <ActionBtn onClick={() => handleStatusChange(a.id, 'confirmado')} label="Confirmar" variant="success" />
                         )}
@@ -446,11 +507,12 @@ function StatusBadge({ status }: { status: string }) {
   const styles: any = {
     'aguardando aprovação': 'bg-yellow-50 text-yellow-600',
     'confirmado': 'bg-green-50 text-green-600',
-    'cancelado': 'bg-red-50 text-red-600'
+    'cancelado': 'bg-red-50 text-red-600',
+    'reagendamento solicitado': 'bg-blue-50 text-blue-600'
   };
   return (
     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${styles[status] || 'bg-gray-50 text-gray-500'}`}>
-      {status === 'aguardando aprovação' ? 'Pendente' : status}
+      {status === 'aguardando aprovação' ? 'Pendente' : status === 'reagendamento solicitado' ? 'Reagendamento' : status}
     </span>
   );
 }

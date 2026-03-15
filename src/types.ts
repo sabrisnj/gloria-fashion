@@ -24,7 +24,9 @@ export interface Appointment {
   service: string;
   date: string;
   time: string;
-  status: 'aguardando aprovação' | 'confirmado' | 'cancelado' | 'reagendado';
+  status: 'aguardando aprovação' | 'confirmado' | 'cancelado' | 'reagendado' | 'reagendamento solicitado';
+  requested_date?: string;
+  requested_time?: string;
   referrer_phone?: string;
   created_at: string;
 }

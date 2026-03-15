@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
-import db from "./src/database.js";
+import db from "../src/database.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -308,10 +308,27 @@ export async function getApp() {
 
   app.patch(["/api/appointments", "/api/appointments/"], (req, res) => {
     try {
-      const { status } = req.body;
+      const { status, date, time, requested_date, requested_time } = req.body;
       const { id } = req.query;
       if (!id) return res.status(400).json({ error: "ID é obrigatório" });
-      db.prepare("UPDATE appointments SET status = ? WHERE id = ?").run(status, id);
+
+      const updates: string[] = [];
+      const params: any[] = [];
+
+      if (status !== undefined) { updates.push("status = ?"); params.push(status); }
+      if (date !== undefined) { updates.push("date = ?"); params.push(date); }
+      if (time !== undefined) { updates.push("time = ?"); params.push(time); }
+      if (requested_date !== undefined) { updates.push("requested_date = ?"); params.push(requested_date); }
+      if (requested_time !== undefined) { updates.push("requested_time = ?"); params.push(requested_time); }
+
+      if (updates.length === 0) {
+        return res.status(400).json({ error: "Nenhum campo para atualizar fornecido" });
+      }
+
+      params.push(id);
+      const query = `UPDATE appointments SET ${updates.join(", ")} WHERE id = ?`;
+      db.prepare(query).run(...params);
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating appointment:", error);
@@ -482,9 +499,9 @@ export async function getApp() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
+    app.use(express.static(path.join(__dirname, "..", "dist")));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
+      res.sendFile(path.join(__dirname, "..", "dist", "index.html"));
     });
   }
 

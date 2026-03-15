@@ -53,6 +53,8 @@ try {
       date TEXT NOT NULL,
       time TEXT NOT NULL,
       status TEXT DEFAULT 'aguardando aprovação',
+      requested_date TEXT,
+      requested_time TEXT,
       referrer_phone TEXT,
       consent INTEGER DEFAULT 0,
       notifications INTEGER DEFAULT 0,
@@ -109,6 +111,11 @@ try {
     ('Biquíni Verão', 'Biquíni estampado coleção 2026.', 89.90, 'Biquínis', 'https://picsum.photos/seed/biquini/400/400'),
     ('Lingerie Renda', 'Conjunto de lingerie em renda preta.', 120.00, 'Lingeries', 'https://picsum.photos/seed/lingerie/400/400');
   `);
+
+  // Migration: Add requested_date and requested_time to appointments
+  try { db.exec("ALTER TABLE appointments ADD COLUMN requested_date TEXT;"); } catch (e) {}
+  try { db.exec("ALTER TABLE appointments ADD COLUMN requested_time TEXT;"); } catch (e) {}
+
   console.log(`[DB] Tables initialized/verified`);
 } catch (err) {
   console.error(`[DB] Table initialization failed:`, err);
