@@ -1,7 +1,6 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
-import db from "../src/database.js";
+import { getDb } from "../src/database";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -11,10 +10,16 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 export async function getApp() {
+  console.log('[Server] getApp called');
   // Only configure once
-  if ((app as any)._configured) return app;
-  
-  // Database health check
+  if ((app as any)._configured) {
+    console.log('[Server] App already configured');
+    return app;
+  }
+
+  console.log('[Server] Initializing database...');
+  const db = await getDb();
+  console.log('[Server] Database initialized');
   try {
     const tableCount = db.prepare("SELECT count(*) as count FROM sqlite_master WHERE type='table'").get();
     console.log('Database initialized. Table count:', tableCount);
@@ -493,6 +498,7 @@ export async function getApp() {
 
   // --- VITE MIDDLEWARE ---
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
