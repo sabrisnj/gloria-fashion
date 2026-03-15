@@ -20,6 +20,12 @@ const SERVICES = [
   "Consultoria de Estilo"
 ];
 
+const TIME_SLOTS = [
+  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+  "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
+  "16:00", "16:30", "17:00", "17:30", "18:00"
+];
+
 interface AppointmentFormProps {
   client: Client | null;
   isAdmin?: boolean;
@@ -38,6 +44,8 @@ export function AppointmentForm({ client, isAdmin }: AppointmentFormProps) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [isSchedulingBlocked, setIsSchedulingBlocked] = useState(false);
+  const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+  const [fetchingTimes, setFetchingTimes] = useState(false);
 
   // Admin specific fields
   const [adminClientName, setAdminClientName] = useState('');
@@ -78,6 +86,54 @@ export function AppointmentForm({ client, isAdmin }: AppointmentFormProps) {
 
     return () => unsubscribe();
   }, [client]);
+
+  useEffect(() => {
+    if (!date) {
+      setBookedTimes([]);
+      return;
+    }
+
+    const fetchBookedTimes = async () => {
+      setFetchingTimes(true);
+      try {
+        const q = query(
+          collection(db, 'appointments'),
+          where('date', '==', date),
+          where('status', 'in', ['pendente', 'confirmado'])
+        );
+        const querySnapshot = await getDocs(q);
+        const times = querySnapshot.docs.map(doc => doc.data().time);
+        setBookedTimes(times);
+      } catch (err) {
+        console.error("Erro ao buscar horários ocupados:", err);
+      } finally {
+        setFetchingTimes(false);
+      }
+    };
+
+    fetchBookedTimes();
+  }, [date]);
+
+  const getAvailableSlots = () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    return TIME_SLOTS.filter(slot => {
+      // Filter out booked times
+      if (bookedTimes.includes(slot)) return false;
+
+      // If date is today, filter out past times
+      if (date === today) {
+        const [slotHour, slotMinute] = slot.split(':').map(Number);
+        if (slotHour < currentHour) return false;
+        if (slotHour === currentHour && slotMinute <= currentMinute) return false;
+      }
+
+      return true;
+    });
+  };
 
   const handleSubmit = async () => {
     let finalClientName = isAdmin ? adminClientName : client?.name;
@@ -272,18 +328,39 @@ export function AppointmentForm({ client, isAdmin }: AppointmentFormProps) {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <label className="text-xs font-bold uppercase text-gray-custom">Escolha o Horário:</label>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-custom" size={18} />
-                      <input 
-                        type="time" 
-                        className="input-field pl-10 border-gray-200"
-                        value={time}
-                        onChange={(e) => setTime(e.target.value)}
-                        required
-                      />
-                    </div>
+                    {!date ? (
+                      <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-center text-xs text-gray-400">
+                        Selecione uma data primeiro para ver os horários disponíveis.
+                      </div>
+                    ) : fetchingTimes ? (
+                      <div className="flex justify-center py-4">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-2">
+                        {getAvailableSlots().length > 0 ? (
+                          getAvailableSlots().map(slot => (
+                            <button
+                              key={slot}
+                              onClick={() => setTime(slot)}
+                              className={`py-2 px-1 rounded-lg text-xs font-bold transition-all border ${
+                                time === slot 
+                                  ? 'bg-primary text-white border-primary shadow-md' 
+                                  : 'bg-white text-ink border-gray-100 hover:border-peach/30'
+                              }`}
+                            >
+                              {slot}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="col-span-4 p-4 bg-red-50 rounded-xl text-center text-xs text-red-500 font-medium">
+                            Não há horários disponíveis para esta data.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -6,6 +6,14 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, limit } from 'firebase/firestore';
 import { Product, Appointment, Client, Voucher, Visit } from '../types';
 import { formatCurrency } from '../utils';
+import { format } from 'date-fns';
+import { collection as firestoreCollection, getDocs as firestoreGetDocs, query as firestoreQuery, where as firestoreWhere } from 'firebase/firestore';
+
+const TIME_SLOTS = [
+  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+  "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
+  "16:00", "16:30", "17:00", "17:30", "18:00"
+];
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -20,6 +28,9 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
   const [loading, setLoading] = useState(true);
   const [isSchedulingBlocked, setIsSchedulingBlocked] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+  const [fetchingTimes, setFetchingTimes] = useState(false);
 
   // Filters for All Appointments
   const [filterDate, setFilterDate] = useState('');
@@ -35,7 +46,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
 
   useEffect(() => {
     // Fetch Appointments
-    const qAppts = query(collection(db, 'appointments'), orderBy('createdAt', 'desc'), limit(50));
+    const qAppts = query(collection(db, 'appointments'), orderBy('createdAt', 'desc'), limit(500));
     const unsubAppts = onSnapshot(qAppts, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -100,6 +111,54 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!newApptDate) {
+      setBookedTimes([]);
+      return;
+    }
+
+    const fetchBookedTimes = async () => {
+      setFetchingTimes(true);
+      try {
+        const q = firestoreQuery(
+          firestoreCollection(db, 'appointments'),
+          firestoreWhere('date', '==', newApptDate),
+          firestoreWhere('status', 'in', ['pendente', 'confirmado'])
+        );
+        const querySnapshot = await firestoreGetDocs(q);
+        const times = querySnapshot.docs.map(doc => doc.data().time);
+        setBookedTimes(times);
+      } catch (err) {
+        console.error("Erro ao buscar horários ocupados:", err);
+      } finally {
+        setFetchingTimes(false);
+      }
+    };
+
+    fetchBookedTimes();
+  }, [newApptDate]);
+
+  const getAvailableSlots = () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    return TIME_SLOTS.filter(slot => {
+      // Filter out booked times
+      if (bookedTimes.includes(slot)) return false;
+
+      // If date is today, filter out past times
+      if (newApptDate === today) {
+        const [slotHour, slotMinute] = slot.split(':').map(Number);
+        if (slotHour < currentHour) return false;
+        if (slotHour === currentHour && slotMinute <= currentMinute) return false;
+      }
+
+      return true;
+    });
+  };
 
   const toggleSchedulingBlock = async () => {
     try {
@@ -177,6 +236,12 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
 
   const pendingAppointments = appointments.filter(a => a.status === 'pendente');
   const otherAppointments = appointments.filter(a => a.status !== 'pendente');
+
+  const sortedHistory = [...otherAppointments].sort((a, b) => {
+    const dateA = new Date(`${a.date}T${a.time}`).getTime();
+    const dateB = new Date(`${b.date}T${b.time}`).getTime();
+    return sortDirection === 'desc' ? dateB - dateA : dateA - dateB;
+  });
 
   const handleVisitStatusChange = async (id: string, status: string) => {
     try {
@@ -312,7 +377,8 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                       <option>Alargador</option>
                       <option>Consultoria</option>
                     </select>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-gray-custom">Data</label>
                       <input 
                         type="date" 
                         className="input-field text-sm" 
@@ -320,13 +386,36 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                         onChange={e => setNewApptDate(e.target.value)}
                         required 
                       />
-                      <input 
-                        type="time" 
-                        className="input-field text-sm" 
-                        value={newApptTime}
-                        onChange={e => setNewApptTime(e.target.value)}
-                        required 
-                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-gray-custom">Horário</label>
+                      {!newApptDate ? (
+                        <div className="p-3 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-center text-[10px] text-gray-400">
+                          Selecione uma data primeiro.
+                        </div>
+                      ) : fetchingTimes ? (
+                        <div className="flex justify-center py-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-4 gap-1">
+                          {getAvailableSlots().map(slot => (
+                            <button
+                              key={slot}
+                              type="button"
+                              onClick={() => setNewApptTime(slot)}
+                              className={`py-1.5 rounded-lg text-[10px] font-bold transition-all border ${
+                                newApptTime === slot 
+                                  ? 'bg-primary text-white border-primary' 
+                                  : 'bg-white text-ink border-gray-100'
+                              }`}
+                            >
+                              {slot}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <button type="submit" className="btn-primary w-full">Salvar Agendamento</button>
                   </form>
@@ -433,19 +522,36 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
 
               {otherAppointments.length > 0 && (
                 <div className="space-y-3 pt-4 border-t border-gray-100">
-                  <h2 className="font-display text-lg font-bold text-gray-custom">Histórico Recente</h2>
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-display text-lg font-bold text-gray-custom">Histórico Completo</h2>
+                    <button 
+                      onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                      className="flex items-center gap-1 text-[10px] font-bold uppercase text-primary bg-primary/5 px-2 py-1 rounded-lg"
+                    >
+                      Data {sortDirection === 'desc' ? '↓' : '↑'}
+                    </button>
+                  </div>
                   <div className="space-y-2">
-                    {otherAppointments.slice(0, 5).map(a => (
-                      <div key={a.id} className="card p-3 flex items-center justify-between border-gray-100 opacity-80">
+                    {sortedHistory.map(a => (
+                      <div key={a.id} className="card p-3 flex items-center justify-between border-gray-100 opacity-90 hover:opacity-100 transition-opacity">
                         <div className="flex flex-col">
                           <span className="font-bold text-xs text-ink">{a.client_name}</span>
-                          <span className="text-[10px] text-gray-custom">{a.service} • {a.date}</span>
+                          <span className="text-[10px] text-gray-custom">{a.service} • {a.date} às {a.time}</span>
                         </div>
-                        <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                          a.status === 'confirmado' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
-                        }`}>
-                          {a.status}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                            a.status === 'confirmado' ? 'bg-green-50 text-green-600' : 
+                            a.status === 'cancelado' ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-600'
+                          }`}>
+                            {a.status}
+                          </span>
+                          <button 
+                            onClick={() => handleStatusChange(a.id, a.status === 'cancelado' ? 'confirmado' : 'cancelado')}
+                            className="text-[8px] text-gray-400 hover:text-primary underline"
+                          >
+                            Alterar
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
