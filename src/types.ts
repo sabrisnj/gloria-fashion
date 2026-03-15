@@ -43,6 +43,11 @@ export interface Quote {
   client_id: string;
   client_name: string;
   client_whatsapp: string;
+  store_name?: string;
+  instagram?: string;
+  whatsapp_contact?: string;
+  best_time?: string;
+  service_type?: string;
   service_details: string;
   status: 'solicitado' | 'enviado' | 'cancelado';
   price_offered?: number;

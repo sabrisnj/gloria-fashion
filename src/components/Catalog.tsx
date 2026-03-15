@@ -39,6 +39,11 @@ const CATALOG_ITEMS = [
 export function Catalog({ client }: { client: Client | null }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [storeName, setStoreName] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [whatsappContact, setWhatsappContact] = useState('');
+  const [bestTime, setBestTime] = useState('');
+  const [serviceType, setServiceType] = useState('');
   const [quoteDetails, setQuoteDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quoteSuccess, setQuoteSuccess] = useState(false);
@@ -53,11 +58,21 @@ export function Catalog({ client }: { client: Client | null }) {
         client_id: client.id,
         client_name: client.name,
         client_whatsapp: client.whatsapp,
+        store_name: storeName,
+        instagram: instagram,
+        whatsapp_contact: whatsappContact,
+        best_time: bestTime,
+        service_type: serviceType,
         service_details: quoteDetails,
         status: 'solicitado',
         createdAt: new Date().toISOString()
       });
       setQuoteSuccess(true);
+      setStoreName('');
+      setInstagram('');
+      setWhatsappContact('');
+      setBestTime('');
+      setServiceType('');
       setQuoteDetails('');
       setTimeout(() => {
         setShowQuoteModal(false);
@@ -174,17 +189,80 @@ export function Catalog({ client }: { client: Client | null }) {
                     <p className="text-xs text-gray-custom">Nossa equipe entrará em contato em breve pelo seu WhatsApp.</p>
                   </div>
                 ) : (
-                  <form onSubmit={handleRequestQuote} className="space-y-4">
-                    <p className="text-xs text-gray-custom leading-relaxed">
-                      Descreva brevemente o produto ou serviço que você deseja divulgar em nossas redes sociais.
-                    </p>
-                    <textarea 
-                      className="input-field min-h-[120px] py-3 resize-none"
-                      placeholder="Ex: Gostaria de divulgar minha loja de bolos artesanais no Instagram da Glória Fashion..."
-                      value={quoteDetails}
-                      onChange={(e) => setQuoteDetails(e.target.value)}
-                      required
-                    />
+                  <form onSubmit={handleRequestQuote} className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-gray-custom ml-1">Nome da Loja</label>
+                        <input 
+                          type="text" 
+                          className="input-field text-sm" 
+                          placeholder="Ex: Minha Loja Fashion"
+                          value={storeName}
+                          onChange={(e) => setStoreName(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-gray-custom ml-1">Instagram</label>
+                        <input 
+                          type="text" 
+                          className="input-field text-sm" 
+                          placeholder="Ex: @minhaloja"
+                          value={instagram}
+                          onChange={(e) => setInstagram(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-gray-custom ml-1">WhatsApp para Retorno</label>
+                        <input 
+                          type="tel" 
+                          className="input-field text-sm" 
+                          placeholder="Ex: 11 99999-9999"
+                          value={whatsappContact}
+                          onChange={(e) => setWhatsappContact(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-gray-custom ml-1">Melhor horário para contato</label>
+                        <input 
+                          type="text" 
+                          className="input-field text-sm" 
+                          placeholder="Ex: Manhã ou Tarde"
+                          value={bestTime}
+                          onChange={(e) => setBestTime(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-gray-custom ml-1">Tipo de Produto/Serviço</label>
+                        <input 
+                          type="text" 
+                          className="input-field text-sm" 
+                          placeholder="Ex: Roupas, Acessórios, etc."
+                          value={serviceType}
+                          onChange={(e) => setServiceType(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-gray-custom ml-1">Descrição do Serviço</label>
+                        <textarea 
+                          className="input-field min-h-[100px] py-3 resize-none text-sm"
+                          placeholder="Descreva brevemente o que deseja divulgar..."
+                          value={quoteDetails}
+                          onChange={(e) => setQuoteDetails(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+
                     <button 
                       type="submit" 
                       disabled={isSubmitting}

@@ -776,8 +776,15 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                     <h3 className="font-bold text-ink">Enviar Orçamento para {selectedQuote.client_name}</h3>
                     <button onClick={() => setSelectedQuote(null)} className="text-gray-400"><X size={20}/></button>
                   </div>
-                  <div className="p-3 bg-white rounded-xl border border-primary/10 text-xs text-gray-custom italic">
-                    "{selectedQuote.service_details}"
+                  <div className="p-3 bg-white rounded-xl border border-primary/10 text-xs space-y-2">
+                    <p className="text-ink"><strong>Loja:</strong> {selectedQuote.store_name}</p>
+                    <p className="text-ink"><strong>Instagram:</strong> {selectedQuote.instagram}</p>
+                    <p className="text-ink"><strong>WhatsApp Retorno:</strong> {selectedQuote.whatsapp_contact}</p>
+                    <p className="text-ink"><strong>Melhor Horário:</strong> {selectedQuote.best_time}</p>
+                    <p className="text-ink"><strong>Tipo:</strong> {selectedQuote.service_type}</p>
+                    <p className="text-gray-custom italic mt-2 border-t border-primary/5 pt-2">
+                      "{selectedQuote.service_details}"
+                    </p>
                   </div>
                   <form onSubmit={handleSendQuote} className="space-y-3">
                     <div className="space-y-1">
@@ -828,8 +835,13 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                         </span>
                       </div>
                       
-                      <div className="bg-white/80 p-3 rounded-xl border border-peach/10 text-xs">
-                        <p className="text-ink leading-relaxed"><strong>Solicitação:</strong> {q.service_details}</p>
+                      <div className="bg-white/80 p-3 rounded-xl border border-peach/10 text-xs space-y-1">
+                        <p className="text-ink"><strong>Loja:</strong> {q.store_name}</p>
+                        <p className="text-ink"><strong>Instagram:</strong> {q.instagram}</p>
+                        <p className="text-ink"><strong>WhatsApp:</strong> {q.whatsapp_contact}</p>
+                        <p className="text-ink"><strong>Horário:</strong> {q.best_time}</p>
+                        <p className="text-ink"><strong>Tipo:</strong> {q.service_type}</p>
+                        <p className="text-ink leading-relaxed mt-1 pt-1 border-t border-peach/5"><strong>Descrição:</strong> {q.service_details}</p>
                         {q.status === 'enviado' && (
                           <div className="mt-2 pt-2 border-t border-peach/5 space-y-1">
                             <p className="text-primary font-bold">Valor: {formatCurrency(q.price_offered || 0)}</p>
