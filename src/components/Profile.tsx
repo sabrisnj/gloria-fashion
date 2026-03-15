@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { User, LogOut, Bell, History, Ticket, Star, Share2, Camera, Type, Eye, Layout, Volume2, ChevronDown, ChevronUp, Shield, HelpCircle, BookOpen, Smartphone, UserPlus, Calendar as CalendarIcon, ShoppingBag, Gift, QrCode, Accessibility } from 'lucide-react';
 import { Client, Voucher } from '../types';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 interface ProfileProps {
@@ -32,7 +32,7 @@ export function Profile({ client, onLogout, accessibility, setAccessibility }: P
         setVouchers(vouchersData);
         setLoading(false);
       }, (error) => {
-        console.error("Error fetching vouchers:", error);
+        handleFirestoreError(error, OperationType.GET, 'vouchers');
         setLoading(false);
       });
 

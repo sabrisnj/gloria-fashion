@@ -10,7 +10,7 @@ import {
   UserPlus,
   Info
 } from 'lucide-react';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { Client } from '../types';
 
@@ -49,8 +49,12 @@ export function Payment({ client }: PaymentProps) {
       });
       setSuccess(true);
     } catch (error: any) {
-      console.error('Check-in error:', error);
-      alert('Erro ao realizar check-in.');
+      try {
+        handleFirestoreError(error, OperationType.CREATE, 'visits');
+      } catch (handledErr: any) {
+        const errInfo = JSON.parse(handledErr.message);
+        alert('Erro ao realizar check-in: ' + errInfo.error);
+      }
     } finally {
       setLoading(false);
     }

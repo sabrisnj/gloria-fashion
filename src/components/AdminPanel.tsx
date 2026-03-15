@@ -271,7 +271,7 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       // Se confirmado, poderíamos adicionar lógica de voucher aqui no futuro
       // como feito no server.ts original
     } catch (error: any) {
-      alert('Erro ao atualizar status da visita: ' + error.message);
+      handleFirestoreError(error, OperationType.UPDATE, 'visits');
     } finally {
       setActionLoading(null);
     }
@@ -301,7 +301,12 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       setQuoteNotes('');
       alert('Orçamento enviado com sucesso!');
     } catch (error: any) {
-      alert('Erro ao enviar orçamento: ' + error.message);
+      try {
+        handleFirestoreError(error, OperationType.UPDATE, 'quotes');
+      } catch (handledErr: any) {
+        const errInfo = JSON.parse(handledErr.message);
+        alert('Erro ao enviar orçamento: ' + errInfo.error);
+      }
     } finally {
       setActionLoading(null);
     }
@@ -313,7 +318,12 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       setActionLoading(id);
       await updateDoc(doc(db, 'quotes', id), { status: 'cancelado', updatedAt: new Date().toISOString() });
     } catch (error: any) {
-      alert('Erro ao cancelar orçamento.');
+      try {
+        handleFirestoreError(error, OperationType.UPDATE, 'quotes');
+      } catch (handledErr: any) {
+        const errInfo = JSON.parse(handledErr.message);
+        alert('Erro ao cancelar orçamento: ' + errInfo.error);
+      }
     } finally {
       setActionLoading(null);
     }

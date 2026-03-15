@@ -13,7 +13,7 @@ import {
 
 import { Link } from 'react-router-dom';
 import { Client } from '../types';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 const CATALOG_ITEMS = [
@@ -78,9 +78,13 @@ export function Catalog({ client }: { client: Client | null }) {
         setShowQuoteModal(false);
         setQuoteSuccess(false);
       }, 3000);
-    } catch (err) {
-      console.error('Error requesting quote:', err);
-      alert('Erro ao solicitar orçamento. Tente novamente.');
+    } catch (err: any) {
+      try {
+        handleFirestoreError(err, OperationType.CREATE, 'quotes');
+      } catch (handledErr: any) {
+        const errInfo = JSON.parse(handledErr.message);
+        alert('Erro ao solicitar orçamento: ' + errInfo.error);
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -4,6 +4,7 @@ export interface Client {
   whatsapp: string;
   points: number;
   vouchers: any[];
+  last_access?: string;
 }
 
 export interface Product {
