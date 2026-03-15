@@ -31,13 +31,6 @@ export default function App() {
   });
 
   useEffect(() => {
-    fetch('/api/health')
-      .then(res => res.json())
-      .then(data => console.log('API Health Check:', data))
-      .catch(err => console.error('API Health Check Failed:', err));
-  }, []);
-
-  useEffect(() => {
     if (client) {
       localStorage.setItem('gloria_client', JSON.stringify(client));
       console.log('Client updated:', client);
@@ -95,7 +88,7 @@ export default function App() {
         <Layout client={client} isAdmin={isAdmin} onLogout={handleLogout} accessibility={accessibility} setAccessibility={setAccessibility}>
           <Routes>
             <Route path="/" element={isAdmin ? <Navigate to="/admin" /> : <Catalog />} />
-            <Route path="/agendar" element={<AppointmentForm client={client} />} />
+            <Route path="/agendar" element={<AppointmentForm client={client} isAdmin={isAdmin} />} />
             <Route path="/pagamento" element={<Payment client={client} />} />
             <Route path="/perfil" element={<Profile client={client} onLogout={handleLogout} accessibility={accessibility} setAccessibility={setAccessibility} />} />
             <Route path="/guia" element={<Guide />} />

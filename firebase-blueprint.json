@@ -5,37 +5,92 @@
       "description": "Um agendamento realizado por um cliente.",
       "type": "object",
       "properties": {
-        "clientName": {
-          "type": "string",
-          "description": "Nome do cliente."
-        },
-        "whatsapp": {
-          "type": "string",
-          "description": "WhatsApp do cliente."
-        },
+        "client_id": { "type": "string" },
+        "client_name": { "type": "string" },
+        "client_whatsapp": { "type": "string" },
+        "service": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
         "status": {
           "type": "string",
-          "enum": ["pending", "confirmed", "cancelled"],
-          "description": "Status do agendamento."
+          "enum": ["pendente", "confirmado", "cancelado", "reagendado"]
         },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Data de criação do agendamento."
-        },
-        "appointmentDate": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Data e hora solicitada para o agendamento."
-        }
+        "referrer_phone": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["clientName", "whatsapp", "status", "createdAt"]
+      "required": ["client_id", "service", "date", "time", "status", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Um produto ou serviço oferecido pela loja.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "image_url": { "type": "string" }
+      },
+      "required": ["name", "price", "category"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Perfil de um cliente.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "points": { "type": "number" },
+        "last_access": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "whatsapp"]
+    },
+    "Visit": {
+      "title": "Visit",
+      "description": "Um check-in realizado por um cliente.",
+      "type": "object",
+      "properties": {
+        "client_id": { "type": "string" },
+        "client_name": { "type": "string" },
+        "client_whatsapp": { "type": "string" },
+        "referral_code": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["pendente", "confirmado", "rejeitado"]
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["client_id", "status", "createdAt"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Configurações globais do sistema.",
+      "type": "object",
+      "properties": {
+        "isBlocked": { "type": "boolean" }
+      }
     }
   },
   "firestore": {
     "appointments": {
       "schema": "Appointment",
       "description": "Coleção de agendamentos."
+    },
+    "products": {
+      "schema": "Product",
+      "description": "Coleção de produtos."
+    },
+    "clients": {
+      "schema": "Client",
+      "description": "Coleção de clientes."
+    },
+    "visits": {
+      "schema": "Visit",
+      "description": "Coleção de check-ins."
+    },
+    "settings": {
+      "schema": "Setting",
+      "description": "Configurações do sistema."
     }
   }
 }

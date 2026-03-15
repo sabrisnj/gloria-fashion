@@ -3,7 +3,7 @@ import * as React from 'react';
 import { motion } from 'motion/react';
 import { ShieldCheck, LogOut, Package, Calendar, Users, Ticket, Settings, Plus, Edit2, Trash2, Check, X, MapPin, CheckCircle, Home, Filter, FileText, Megaphone, Search } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, limit } from 'firebase/firestore';
 import { Product, Appointment, Client, Voucher, Visit } from '../types';
 import { formatCurrency } from '../utils';
 
@@ -12,12 +12,14 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ onLogout }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'admin' | 'appointments' | 'products' | 'clients' | 'vouchers' | 'settings' | 'visits' | 'budgets' | 'events'>('admin');
+  const [activeTab, setActiveTab] = useState<'admin' | 'appointments' | 'products' | 'clients' | 'vouchers' | 'settings' | 'visits'>('admin');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSchedulingBlocked, setIsSchedulingBlocked] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Filters for All Appointments
   const [filterDate, setFilterDate] = useState('');
@@ -32,12 +34,13 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
   const [newApptTime, setNewApptTime] = useState('');
 
   useEffect(() => {
-    const q = query(collection(db, 'appointments'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    // Fetch Appointments
+    const qAppts = query(collection(db, 'appointments'), orderBy('createdAt', 'desc'), limit(50));
+    const unsubAppts = onSnapshot(qAppts, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as Appointment[];
+      })) as any as Appointment[];
       setAppointments(docs);
       setLoading(false);
     }, (err) => {
@@ -45,29 +48,116 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
       setLoading(false);
     });
 
+    // Fetch Products
+    const qProducts = query(collection(db, 'products'), orderBy('name', 'asc'));
+    const unsubProducts = onSnapshot(qProducts, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any as Product[];
+      setProducts(docs);
+    }, (err) => {
+      console.warn("Erro ao buscar produtos:", err);
+    });
+
+    // Fetch Visits (Check-ins)
+    const qVisits = query(collection(db, 'visits'), orderBy('createdAt', 'desc'), limit(50));
+    const unsubVisits = onSnapshot(qVisits, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any as Visit[];
+      setVisits(docs);
+    }, (err) => {
+      console.warn("Erro ao buscar visitas:", err);
+    });
+
+    // Fetch Clients
+    const qClients = query(collection(db, 'clients'), orderBy('name', 'asc'), limit(100));
+    const unsubClients = onSnapshot(qClients, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any as Client[];
+      setClients(docs);
+    }, (err) => {
+      console.warn("Erro ao buscar clientes:", err);
+    });
+
+    return () => {
+      unsubAppts();
+      unsubProducts();
+      unsubVisits();
+      unsubClients();
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, 'settings', 'scheduling'), (snapshot) => {
+      if (snapshot.exists()) {
+        setIsSchedulingBlocked(snapshot.data().isBlocked || false);
+      }
+    });
     return () => unsubscribe();
   }, []);
 
+  const toggleSchedulingBlock = async () => {
+    try {
+      const docRef = doc(db, 'settings', 'scheduling');
+      await updateDoc(docRef, { isBlocked: !isSchedulingBlocked });
+    } catch (error: any) {
+      if (error.code === 'not-found') {
+        await addDoc(collection(db, 'settings'), { isBlocked: !isSchedulingBlocked });
+      } else {
+        // Se o documento não existir, tenta criar
+        try {
+          const { setDoc } = await import('firebase/firestore');
+          await setDoc(doc(db, 'settings', 'scheduling'), { isBlocked: !isSchedulingBlocked });
+        } catch (innerErr) {
+          alert('Erro ao alterar status de bloqueio.');
+        }
+      }
+    }
+  };
+
   const handleStatusChange = async (id: string, status: string) => {
     try {
+      setActionLoading(id);
       const docRef = doc(db, 'appointments', id);
       await updateDoc(docRef, { status });
-    } catch (error) {
-      console.error('Error updating status:', error);
-      alert('Erro ao atualizar status.');
+    } catch (error: any) {
+      try {
+        handleFirestoreError(error, OperationType.UPDATE, `appointments/${id}`);
+      } catch (handledErr: any) {
+        const errInfo = JSON.parse(handledErr.message);
+        alert('Erro ao atualizar status: ' + errInfo.error);
+      }
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleIncludeAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let finalClientId = `admin_${Date.now()}`;
+      
+      // Tenta vincular ao cliente existente
+      const { getDocs, query, collection, where } = await import('firebase/firestore');
+      const q = query(collection(db, 'clients'), where('whatsapp', '==', newApptWhatsapp));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        finalClientId = querySnapshot.docs[0].id;
+      }
+
       await addDoc(collection(db, 'appointments'), {
+        client_id: finalClientId,
         client_name: newApptName,
         client_whatsapp: newApptWhatsapp,
         service: newApptService,
         date: newApptDate,
         time: newApptTime,
-        status: 'confirmado', // Admin inserting usually means confirmed
+        status: 'confirmado',
         createdAt: new Date().toISOString()
       });
       setShowIncludeForm(false);
@@ -88,12 +178,18 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
   const pendingAppointments = appointments.filter(a => a.status === 'pendente');
   const otherAppointments = appointments.filter(a => a.status !== 'pendente');
 
-  const handleVisitStatusChange = async (id: number, status: string) => {
+  const handleVisitStatusChange = async (id: string, status: string) => {
     try {
-      // Em um app real, atualizaríamos o Firestore aqui também
-      console.log('Visit status change:', id, status);
-    } catch (error) {
-      alert('Erro ao atualizar status da visita.');
+      setActionLoading(id);
+      const docRef = doc(db, 'visits', id);
+      await updateDoc(docRef, { status });
+      
+      // Se confirmado, poderíamos adicionar lógica de voucher aqui no futuro
+      // como feito no server.ts original
+    } catch (error: any) {
+      alert('Erro ao atualizar status da visita: ' + error.message);
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -177,24 +273,6 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                   icon={Search}
                   label="Ver Todos os Agendamentos"
                   color="bg-ink"
-                />
-                <MenuButton 
-                  onClick={() => setActiveTab('budgets')}
-                  icon={FileText}
-                  label="Orçamentos Pendentes"
-                  color="bg-orange-500"
-                />
-                <MenuButton 
-                  onClick={() => setActiveTab('budgets')}
-                  icon={FileText}
-                  label="Orçamentos Enviados"
-                  color="bg-blue-500"
-                />
-                <MenuButton 
-                  onClick={() => setActiveTab('events')}
-                  icon={Megaphone}
-                  label="Eventos de Divulgação"
-                  color="bg-purple-500"
                 />
               </div>
 
@@ -322,15 +400,25 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                       <div className="flex gap-2">
                         <button 
                           onClick={() => handleStatusChange(a.id, 'confirmado')}
-                          className="flex-grow flex items-center justify-center gap-1 bg-green-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-green-600 transition-all shadow-md shadow-green-200"
+                          disabled={actionLoading === a.id}
+                          className="flex-grow flex items-center justify-center gap-1 bg-green-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-green-600 transition-all shadow-md shadow-green-200 disabled:opacity-50"
                         >
-                          <Check size={14} /> Aprovar
+                          {actionLoading === a.id ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <><Check size={14} /> Aprovar</>
+                          )}
                         </button>
                         <button 
                           onClick={() => handleStatusChange(a.id, 'cancelado')}
-                          className="flex-grow flex items-center justify-center gap-1 bg-red-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-red-600 transition-all shadow-md shadow-red-200"
+                          disabled={actionLoading === a.id}
+                          className="flex-grow flex items-center justify-center gap-1 bg-red-500 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-red-600 transition-all shadow-md shadow-red-200 disabled:opacity-50"
                         >
-                          <X size={14} /> Cancelar
+                          {actionLoading === a.id ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <><X size={14} /> Cancelar</>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -502,26 +590,23 @@ export function AdminPanel({ onLogout }: AdminPanelProps) {
                   <label className="text-xs font-bold uppercase text-gray-custom">Chave PIX</label>
                   <input type="text" className="input-field text-sm border-gray-200" defaultValue="11967554525" />
                 </div>
-                <button className="btn-primary w-full shadow-lg shadow-primary/20">Salvar Alterações</button>
-              </div>
-            </div>
-          )}
-          {activeTab === 'budgets' && (
-            <div className="space-y-4">
-              <h2 className="font-display text-xl font-bold text-ink">Gestão de Orçamentos</h2>
-              <div className="card bg-gray-50 text-center py-20 border-dashed border-gray-200">
-                <FileText className="text-gray-300 mx-auto mb-2" size={48} />
-                <p className="text-gray-custom italic">Módulo de orçamentos em breve.</p>
-              </div>
-            </div>
-          )}
+                
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <div>
+                      <p className="text-sm font-bold text-ink">Bloquear Agendamentos</p>
+                      <p className="text-[10px] text-gray-custom">Clientes não poderão marcar horários enquanto ativado.</p>
+                    </div>
+                    <button 
+                      onClick={toggleSchedulingBlock}
+                      className={`w-12 h-6 rounded-full transition-all relative ${isSchedulingBlocked ? 'bg-red-500' : 'bg-gray-300'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isSchedulingBlocked ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+                </div>
 
-          {activeTab === 'events' && (
-            <div className="space-y-4">
-              <h2 className="font-display text-xl font-bold text-ink">Eventos de Divulgação</h2>
-              <div className="card bg-gray-50 text-center py-20 border-dashed border-gray-200">
-                <Megaphone className="text-gray-300 mx-auto mb-2" size={48} />
-                <p className="text-gray-custom italic">Módulo de eventos em breve.</p>
+                <button className="btn-primary w-full shadow-lg shadow-primary/20">Salvar Alterações</button>
               </div>
             </div>
           )}

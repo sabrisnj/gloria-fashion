@@ -55,10 +55,20 @@ export function Registration({ onRegister, onAdminLogin }: RegistrationProps) {
     }
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (adminPassword === 'Gloria2026') {
-      onAdminLogin();
+      setLoading(true);
+      try {
+        // Garante que o admin também esteja autenticado no Firebase
+        await signInAnonymously(auth);
+        onAdminLogin();
+      } catch (err) {
+        console.error('Admin auth error:', err);
+        alert('Erro ao autenticar administrador no Firebase.');
+      } finally {
+        setLoading(false);
+      }
     } else {
       alert('Senha administrativa incorreta.');
     }

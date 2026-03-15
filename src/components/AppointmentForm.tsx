@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Clock, CheckCircle, ChevronRight, ChevronLeft, UserPlus, Info, History } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, ChevronRight, ChevronLeft, UserPlus, Info, History, X } from 'lucide-react';
 import { Client, Appointment } from '../types';
 import { parseISO, format, addDays, startOfToday, isSunday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, orderBy, doc, getDocs, limit } from 'firebase/firestore';
 
 const SERVICES = [
   "Colocação de Piercing (Orelha)",
@@ -22,9 +22,10 @@ const SERVICES = [
 
 interface AppointmentFormProps {
   client: Client | null;
+  isAdmin?: boolean;
 }
 
-export function AppointmentForm({ client }: AppointmentFormProps) {
+export function AppointmentForm({ client, isAdmin }: AppointmentFormProps) {
   const [step, setStep] = useState(1);
   const [service, setService] = useState('');
   const [date, setDate] = useState('');
@@ -36,15 +37,32 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
   const [success, setSuccess] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
+  const [isSchedulingBlocked, setIsSchedulingBlocked] = useState(false);
+
+  // Admin specific fields
+  const [adminClientName, setAdminClientName] = useState('');
+  const [adminClientWhatsapp, setAdminClientWhatsapp] = useState('');
 
   useEffect(() => {
-    if (!client) return;
+    const unsubscribe = onSnapshot(doc(db, 'settings', 'scheduling'), (snapshot) => {
+      if (snapshot.exists()) {
+        setIsSchedulingBlocked(snapshot.data().isBlocked || false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
-    const q = query(
-      collection(db, 'appointments'),
-      where('client_id', '==', client.id),
-      orderBy('createdAt', 'desc')
-    );
+  useEffect(() => {
+    if (!client && !isAdmin) return;
+
+    const q = isAdmin 
+      ? query(collection(db, 'appointments'), orderBy('createdAt', 'desc'), limit(20))
+      : query(
+          collection(db, 'appointments'),
+          where('client_id', '==', client?.id),
+          orderBy('createdAt', 'desc'),
+          limit(20)
+        );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const clientAppointments = snapshot.docs.map(doc => ({
@@ -62,27 +80,51 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
   }, [client]);
 
   const handleSubmit = async () => {
-    if (!client || !service || !date || !time || !consent) {
+    let finalClientName = isAdmin ? adminClientName : client?.name;
+    let finalClientWhatsapp = isAdmin ? adminClientWhatsapp : client?.whatsapp;
+    let finalClientId = isAdmin ? `admin_${Date.now()}` : client?.id;
+
+    if (isAdmin && adminClientWhatsapp) {
+      // Tenta encontrar um cliente existente pelo WhatsApp para vincular o agendamento
+      try {
+        const q = query(collection(db, 'clients'), where('whatsapp', '==', adminClientWhatsapp));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const existingClient = querySnapshot.docs[0].data();
+          finalClientId = querySnapshot.docs[0].id;
+          if (!adminClientName) finalClientName = existingClient.name;
+        }
+      } catch (err) {
+        console.warn("Erro ao buscar cliente existente:", err);
+      }
+    }
+
+    if (!finalClientId || !service || !date || !time || (!isAdmin && !consent)) {
       alert('Por favor, preencha todos os campos e aceite os termos.');
       return;
     }
     setLoading(true);
     try {
       await addDoc(collection(db, 'appointments'), {
-        client_id: client.id,
-        client_name: client.name,
-        client_whatsapp: client.whatsapp,
+        client_id: finalClientId,
+        client_name: finalClientName,
+        client_whatsapp: finalClientWhatsapp,
         service,
         date,
         time,
-        status: 'pendente',
+        status: isAdmin ? 'confirmado' : 'pendente',
         referrer_phone: referrer || null,
         createdAt: new Date().toISOString()
       });
       
       setSuccess(true);
     } catch (error: any) {
-      handleFirestoreError(error, OperationType.CREATE, 'appointments');
+      try {
+        handleFirestoreError(error, OperationType.CREATE, 'appointments');
+      } catch (handledErr: any) {
+        const errInfo = JSON.parse(handledErr.message);
+        alert('Erro ao agendar: ' + errInfo.error);
+      }
     } finally {
       setLoading(false);
     }
@@ -90,6 +132,20 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
 
   const nextStep = () => setStep(s => s + 1);
   const prevStep = () => setStep(s => s - 1);
+
+  if (isSchedulingBlocked && !isAdmin) {
+    return (
+      <div className="text-center py-12 space-y-6">
+        <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-inner border-4 border-red-50">
+          <X size={48} />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-3xl font-display font-bold text-ink">Agendamentos Bloqueados</h2>
+          <p className="text-gray-custom">A Glória Fashion não está aceitando novos agendamentos no momento. Por favor, tente novamente mais tarde.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -148,9 +204,34 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
       <AnimatePresence mode="wait">
         {step === 1 && (
           <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+            {isAdmin && (
+              <div className="card bg-primary/5 border-primary/20 space-y-3 mb-6">
+                <h3 className="font-bold text-sm text-ink flex items-center gap-2">
+                  <UserPlus size={16} className="text-primary" />
+                  Dados do Cliente
+                </h3>
+                <div className="grid gap-3">
+                  <input 
+                    type="text" 
+                    placeholder="Nome do Cliente" 
+                    className="input-field text-sm" 
+                    value={adminClientName}
+                    onChange={e => setAdminClientName(e.target.value)}
+                  />
+                  <input 
+                    type="tel" 
+                    placeholder="WhatsApp do Cliente" 
+                    className="input-field text-sm" 
+                    value={adminClientWhatsapp}
+                    onChange={e => setAdminClientWhatsapp(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+            
             <h3 className="font-bold flex items-center gap-2 text-ink">
               <Info size={18} className="text-primary" />
-              Qual serviço você deseja?
+              Qual serviço {isAdmin ? 'será realizado' : 'você deseja'}?
             </h3>
             <div className="grid gap-3">
               {SERVICES.map(s => (
@@ -315,7 +396,7 @@ export function AppointmentForm({ client }: AppointmentFormProps) {
       <section id="meus-agendamentos" className="space-y-4 pt-8 border-t border-gray-100">
         <h2 className="font-display text-xl font-bold flex items-center gap-2 text-ink">
           <History size={20} className="text-primary" />
-          Meus Agendamentos
+          {isAdmin ? 'Todos os Agendamentos' : 'Meus Agendamentos'}
         </h2>
         {loadingAppointments ? (
           <div className="text-center py-4 text-gray-custom text-sm">Carregando agendamentos...</div>

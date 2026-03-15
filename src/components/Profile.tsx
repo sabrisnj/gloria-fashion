@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { User, LogOut, Bell, History, Ticket, Star, Share2, Camera, Type, Eye, Layout, Volume2, ChevronDown, ChevronUp, Shield, HelpCircle, BookOpen, Smartphone, UserPlus, Calendar as CalendarIcon, ShoppingBag, Gift, QrCode, Accessibility } from 'lucide-react';
-import { Client, Voucher, Appointment } from '../types';
-import { parseISO, format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { Client, Voucher } from '../types';
+import { db } from '../firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 interface ProfileProps {
   client: Client | null;
@@ -19,9 +19,24 @@ export function Profile({ client, onLogout, accessibility, setAccessibility }: P
 
   useEffect(() => {
     if (client) {
-      // Em um app real, buscaríamos do Firestore
-      setVouchers([]);
-      setLoading(false);
+      const q = query(
+        collection(db, 'vouchers'),
+        where('client_id', '==', client.id)
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const vouchersData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as any as Voucher[];
+        setVouchers(vouchersData);
+        setLoading(false);
+      }, (error) => {
+        console.error("Error fetching vouchers:", error);
+        setLoading(false);
+      });
+
+      return () => unsubscribe();
     }
   }, [client]);
 

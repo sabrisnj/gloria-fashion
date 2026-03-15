@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, User, Bot, Sparkles, Phone, MapPin, Instagram } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 import { Client } from '../types';
 
 interface VirtualAssistantProps {
@@ -53,26 +54,37 @@ export function VirtualAssistant({ isOpen, onClose, client }: VirtualAssistantPr
     setIsTyping(true);
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: input,
-          name: client?.name || 'visitante'
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao falar com a assistente');
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Chave de API não configurada.");
       }
+
+      const ai = new GoogleGenAI({ apiKey });
+      const model = "gemini-3-flash-preview";
+      
+      const systemInstruction = `Você é a assistente virtual da Glória Fashion, um studio premium de piercing e acessórios em São Bernardo do Campo.
+      Seu objetivo é ajudar os clientes com dúvidas sobre agendamentos, produtos, endereço e promoções.
+      Seja sempre educada, prestativa e use um tom acolhedor.
+      O nome do cliente é ${client?.name || 'visitante'}.
+      
+      Informações importantes:
+      - Endereço: R. Mal. Rondon, 113 – Loja 65, Centro – São Bernardo do Campo.
+      - Horário: Segunda a Sábado, das 09:00 às 19:30.
+      - Agendamentos: Podem ser feitos pelo app na aba 'Agendar'.
+      - Promoções: 'Amor Está no Ar' (5% na 2ª joia), 'Triplo de Joias' (10% na 3ª).
+      - Ouvidoria: Falar com Ivone no WhatsApp 11 95069-6045.`;
+
+      const result = await ai.models.generateContent({
+        model,
+        contents: input,
+        config: {
+          systemInstruction,
+        },
+      });
 
       const botMsg: Message = {
         id: Date.now() + 1,
-        text: data.text,
+        text: result.text || "Desculpe, não consegui processar sua mensagem.",
         sender: 'bot',
         timestamp: new Date()
       };
