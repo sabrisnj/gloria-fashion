@@ -356,8 +356,10 @@ export function Profile({ client, onLogout, accessibility, setAccessibility }: P
                   className="w-full h-full object-cover"
                   preload="metadata"
                   playsInline
+                  muted
                 >
                   <source src="/video-guia.mp4" type="video/mp4" />
+                  <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
                   Seu navegador não suporta vídeos.
                 </video>
               </div>

@@ -1,7 +1,5 @@
 {
   "name": "Sistema de Agendamentos Glória",
   "description": "Sistema de agendamentos com interface para Clientes e Administração.",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "requestFramePermissions": []
 }

@@ -404,10 +404,13 @@ export function Catalog({ client }: { client: Client | null }) {
                 <video 
                   controls 
                   autoPlay
+                  muted
                   className="w-full h-full"
                   preload="metadata"
+                  playsInline
                 >
                   <source src="/video-guia.mp4" type="video/mp4" />
+                  <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
                   Seu navegador não suporta vídeos.
                 </video>
               </div>
