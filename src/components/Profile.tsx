@@ -351,13 +351,15 @@ export function Profile({ client, onLogout, accessibility, setAccessibility }: P
             <div className="space-y-2">
               <p className="text-xs font-bold uppercase text-gray-custom ml-1">Mensagem da Glória</p>
               <div className="aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-peach/20 relative group">
-                <iframe
-                  src="https://app.heygen.com/embed/bba6e653617842e58b6e6748be2ace36"
-                  title="Guia de Uso - Glória Fashion"
-                  className="w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                ></iframe>
+                <video 
+                  controls 
+                  className="w-full h-full object-cover"
+                  preload="metadata"
+                  playsInline
+                >
+                  <source src="/video-guia.mp4" type="video/mp4" />
+                  Seu navegador não suporta vídeos.
+                </video>
               </div>
               <p className="text-[10px] text-gray-custom italic text-center">Assista ao vídeo para aprender a usar todas as funções do nosso app!</p>
             </div>
