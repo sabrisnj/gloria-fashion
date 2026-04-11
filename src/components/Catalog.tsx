@@ -401,18 +401,13 @@ export function Catalog({ client }: { client: Client | null }) {
                 </button>
               </div>
               <div className="aspect-video bg-black">
-                <video 
-                  controls 
-                  autoPlay
-                  muted
-                  className="w-full h-full"
-                  preload="metadata"
-                  playsInline
-                >
-                  <source src="/video-guia.mp4" type="video/mp4" />
-                  <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
-                  Seu navegador não suporta vídeos.
-                </video>
+                <iframe
+                  src="https://app.heygen.com/embed/bba6e653617842e58b6e6748be2ace36"
+                  title="Guia de Uso - Glória Fashion"
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                ></iframe>
               </div>
               <div className="p-4 bg-gray-50">
                 <p className="text-xs text-center text-gray-custom">
