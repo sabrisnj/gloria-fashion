@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { auth } from './firebase';
+import { auth, signInAnonymously } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Layout } from './components/Layout';
 import { Registration } from './components/Registration';
@@ -49,6 +49,21 @@ export default function App() {
   }, [isAdmin]);
 
   useEffect(() => {
+    // Garante que o usuário esteja autenticado no Firebase (mesmo que anonimamente)
+    // para que as regras do Firestore funcionem corretamente.
+    const ensureAuth = async () => {
+      if (!auth.currentUser) {
+        try {
+          await signInAnonymously(auth);
+          console.log('Anonymous sign-in successful on app mount');
+        } catch (err) {
+          console.warn('Anonymous sign-in failed on mount:', err);
+        }
+      }
+    };
+    
+    ensureAuth();
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && user.isAnonymous) {
         // Se for anônimo, o cliente já deve estar no localStorage ou será setado no Registration

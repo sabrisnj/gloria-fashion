@@ -68,5 +68,16 @@ service cloud.firestore {
       allow create: if true;
       allow update, delete: if isAdmin();
     }
+
+    // Vouchers collection
+    match /vouchers/{voucherId} {
+      // Permite leitura se for admin ou se o client_id do voucher corresponder ao ID do cliente
+      allow read: if isAdmin() || 
+                   (isAuthenticated() && resource.data.client_id == request.auth.uid) ||
+                   (resource.data.client_id != null && resource.data.client_id != "");
+      
+      // Apenas admins podem criar, atualizar ou deletar vouchers
+      allow write: if isAdmin();
+    }
   }
 }

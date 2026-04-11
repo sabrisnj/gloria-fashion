@@ -103,6 +103,23 @@
         }
       },
       "required": ["client_id", "client_name", "client_whatsapp", "status", "createdAt"]
+    },
+    "Voucher": {
+      "title": "Voucher",
+      "description": "Um cupom de desconto para um cliente.",
+      "type": "object",
+      "properties": {
+        "client_id": { "type": "string" },
+        "code": { "type": "string" },
+        "description": { "type": "string" },
+        "discount": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["ativo", "utilizado", "expirado"]
+        },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["client_id", "code", "discount", "status", "created_at"]
     }
   },
   "firestore": {
@@ -129,6 +146,10 @@
     "quotes": {
       "schema": "Quote",
       "description": "Coleção de orçamentos."
+    },
+    "vouchers": {
+      "schema": "Voucher",
+      "description": "Coleção de cupons de desconto."
     }
   }
 }

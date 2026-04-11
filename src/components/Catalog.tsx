@@ -8,7 +8,8 @@ import {
   Heart,
   Package,
   Send,
-  X
+  X,
+  PlayCircle
 } from 'lucide-react';
 
 import { Link } from 'react-router-dom';
@@ -39,6 +40,7 @@ const CATALOG_ITEMS = [
 export function Catalog({ client }: { client: Client | null }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
   const [storeName, setStoreName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [instagram, setInstagram] = useState('');
@@ -363,6 +365,61 @@ export function Catalog({ client }: { client: Client | null }) {
           </div>
         </div>
       </section>
+
+      {/* Video Shortcut Section */}
+      <section className="space-y-4">
+        <h2 className="font-display text-xl font-bold text-ink">Como usar o App</h2>
+        <button 
+          onClick={() => setShowVideoModal(true)}
+          className="w-full flex items-center gap-4 p-4 bg-gray-100 rounded-2xl border border-gray-200 hover:bg-gray-200 transition-colors group"
+        >
+          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm shrink-0 group-hover:scale-110 transition-transform">
+            <PlayCircle size={24} className="text-primary fill-primary/10" />
+          </div>
+          <div className="text-left">
+            <p className="font-bold text-sm text-ink">Guia de Uso</p>
+            <p className="text-[10px] text-gray-custom uppercase font-bold">Assista ao vídeo da Glória</p>
+          </div>
+          <ChevronRight size={18} className="ml-auto text-gray-400" />
+        </button>
+      </section>
+
+      {/* Video Modal */}
+      <AnimatePresence>
+        {showVideoModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="font-display font-bold text-ink">Guia de Uso - Glória Fashion</h3>
+                <button onClick={() => setShowVideoModal(false)} className="text-gray-400 hover:text-ink">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="aspect-video bg-black">
+                <video 
+                  controls 
+                  autoPlay
+                  className="w-full h-full"
+                  preload="metadata"
+                >
+                  <source src="/video-guia.mp4" type="video/mp4" />
+                  Seu navegador não suporta vídeos.
+                </video>
+              </div>
+              <div className="p-4 bg-gray-50">
+                <p className="text-xs text-center text-gray-custom">
+                  Dúvidas? Fale conosco pelo WhatsApp no menu Suporte.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
